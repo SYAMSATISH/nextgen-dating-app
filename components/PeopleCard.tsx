@@ -1,4 +1,4 @@
-import { fetchUsersFromFirebase, User } from "@/DB/userDB";
+import { fetchUsersFromFirebase, getCompatibilityScore, User } from "@/DB/userDB";
 import { db } from "@/constants/appwrite";
 import { AntDesign, Ionicons } from "@expo/vector-icons";
 import { doc, updateDoc, arrayUnion } from "firebase/firestore";
@@ -15,11 +15,13 @@ import Swiper from "react-native-deck-swiper";
 
 const { width, height } = Dimensions.get("window");
 
-const CURRENT_USER_ID = "wRFxwqQ6e8radhHxqxX9"; // Ravi Kumar ID — Firebase lo unna ID
+const CURRENT_USER_ID = "wRFxwqQ6e8radhHxqxX9";
+const CURRENT_USER = { name: "Ravi Kumar", intent: "relationship", bio: "Software developer from Hyderabad" };
 
 const PeopleCard = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scores, setScores] = useState<{[key: string]: {score: number, reason: string}}>({});
 
   useEffect(() => {
     loadUsers();
@@ -27,13 +29,19 @@ const PeopleCard = () => {
 
   const loadUsers = async () => {
     const fetchedUsers = await fetchUsersFromFirebase();
-    // Current user filter out cheyyi
     const otherUsers = fetchedUsers.filter(u => u.id !== CURRENT_USER_ID);
     setUsers(otherUsers);
     setLoading(false);
+
+    // AI scores background lo calculate cheyyi
+    const scoreMap: any = {};
+    for (const user of otherUsers) {
+      const result = await getCompatibilityScore(CURRENT_USER, user);
+      scoreMap[user.id] = result;
+    }
+    setScores(scoreMap);
   };
 
-  // Swipe right — like cheyyi, Firebase lo save cheyyi
   const handleSwipeRight = async (cardIndex: number) => {
     const likedUser = users[cardIndex];
     if (!likedUser) return;
@@ -47,7 +55,6 @@ const PeopleCard = () => {
     }
   };
 
-  // Swipe left — dislike, nothing save
   const handleSwipeLeft = (cardIndex: number) => {
     const dislikedUser = users[cardIndex];
     console.log("Disliked:", dislikedUser?.name);
@@ -76,13 +83,26 @@ const PeopleCard = () => {
         cards={users}
         renderCard={(card) => (
           <View style={styles.card}>
-            <ImageBackground source={{ uri: (card as any).photo || card.image }} style={styles.image}>
+            <ImageBackground
+              source={{ uri: (card as any).photo || card.image }}
+              style={styles.image}
+            >
               <View style={styles.infoSection}>
-                <Text style={styles.text}>
+                <Text style={styles.nameText}>
                   {card.name}, {card.age}
                 </Text>
                 {card.bio && (
                   <Text style={styles.bioText}>{card.bio}</Text>
+                )}
+                {scores[card.id] && (
+                  <View style={styles.scoreContainer}>
+                    <Text style={styles.scoreText}>
+                      ❤️ {scores[card.id].score}% Match
+                    </Text>
+                    <Text style={styles.scoreReason}>
+                      {scores[card.id].reason}
+                    </Text>
+                  </View>
                 )}
               </View>
             </ImageBackground>
@@ -161,7 +181,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 10,
   },
-  text: {
+  nameText: {
     color: "white",
     fontSize: 24,
     fontWeight: "bold",
@@ -170,6 +190,24 @@ const styles = StyleSheet.create({
     color: "#ddd",
     fontSize: 14,
     marginTop: 4,
+  },
+  scoreContainer: {
+    backgroundColor: "rgba(233, 30, 99, 0.85)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: 8,
+    alignItems: "center",
+  },
+  scoreText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  scoreReason: {
+    color: "white",
+    fontSize: 12,
+    marginTop: 2,
   },
   overlayLabel: {
     position: "absolute",
