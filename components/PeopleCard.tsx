@@ -36,7 +36,7 @@ const PeopleCard = () => {
     // AI scores background lo calculate cheyyi
     const scoreMap: any = {};
     for (const user of otherUsers) {
-      const result = await getCompatibilityScore(CURRENT_USER, user);
+      const result = getCompatibilityScore(CURRENT_USER, user);
       scoreMap[user.id] = result;
     }
     setScores(scoreMap);
