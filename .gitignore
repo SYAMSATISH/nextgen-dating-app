@@ -45,3 +45,6 @@ ios/
 android/
 package-lock.json
 create_logo.js
+proxy/server.js
+proxy/.env
+proxy/node_modules/
