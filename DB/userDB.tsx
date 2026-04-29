@@ -119,3 +119,60 @@ export const getCompatibilityScore = (
 
   return { score: Math.min(score, 99), reason };
 };
+// Anti-ghosting — chat timer + streak update
+export const updateChatStreak = async (currentUid: string, otherUid: string) => {
+  const chatId = [currentUid, otherUid].sort().join('_');
+  const chatRef = doc(db, 'chats', chatId);
+  const chatSnap = await getDoc(chatRef);
+
+  const now = new Date();
+  
+  if (chatSnap.exists()) {
+    const data = chatSnap.data();
+    const lastMessage = data.lastMessageAt?.toDate();
+    const streak = data.streak || 0;
+    
+    // Last message 24 saarl lo chesthe streak continue
+    const hoursDiff = lastMessage 
+      ? (now.getTime() - lastMessage.getTime()) / (1000 * 60 * 60)
+      : 999;
+      
+    const newStreak = hoursDiff <= 24 ? streak + 1 : 1;
+    
+    await updateDoc(chatRef, {
+      streak: newStreak,
+      lastMessageAt: now,
+      ghostingWarning: false,
+    });
+    
+    return newStreak;
+  } else {
+    await setDoc(chatRef, {
+      users: [currentUid, otherUid],
+      streak: 1,
+      lastMessageAt: now,
+      ghostingWarning: false,
+    });
+    return 1;
+  }
+};
+
+// Ghosting check — 24hr reply lekapothe warning
+export const checkGhostingWarning = async (currentUid: string, otherUid: string) => {
+  const chatId = [currentUid, otherUid].sort().join('_');
+  const chatRef = doc(db, 'chats', chatId);
+  const chatSnap = await getDoc(chatRef);
+
+  if (chatSnap.exists()) {
+    const data = chatSnap.data();
+    const lastMessage = data.lastMessageAt?.toDate();
+    if (lastMessage) {
+      const hoursDiff = (new Date().getTime() - lastMessage.getTime()) / (1000 * 60 * 60);
+      if (hoursDiff > 24) {
+        await updateDoc(chatRef, { ghostingWarning: true });
+        return true;
+      }
+    }
+  }
+  return false;
+};

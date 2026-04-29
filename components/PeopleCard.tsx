@@ -15,7 +15,7 @@ import Swiper from "react-native-deck-swiper";
 
 const { width, height } = Dimensions.get("window");
 
-const CURRENT_USER_ID = "wRFxwqQ6e8radhHxqxX9";
+const CURRENT_USER_ID = "Ao5bEhPi8nfSUhu1rH79goZ4Bjs1";
 const CURRENT_USER = { name: "Ravi Kumar", intent: "relationship", bio: "Software developer from Hyderabad" };
 
 const PeopleCard = () => {

@@ -19,6 +19,6 @@ export async function POST(request: Request) {
       ],
     }),
   });
-  const data = awai  const data = awai  const data = awai  constt[  const data = awai  const dat.parse(text);
-  return Response.json(parsed);
+  const data = await response.json();
+  return Response.json(data.content[0].text);
 }

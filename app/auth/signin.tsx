@@ -27,7 +27,9 @@ const SigninScreen = () => {
       Alert.alert('Success', 'Signed in successfully!');
       setEmail('');
       setPassword('');
-      router.replace('/');
+      setTimeout(() => {
+  router.replace('/');
+}, 500);
     } catch (error: any) {
       Alert.alert('Sign In Error', error.message || 'Unknown error');
     } finally {
