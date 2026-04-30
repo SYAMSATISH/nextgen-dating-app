@@ -175,4 +175,14 @@ export const checkGhostingWarning = async (currentUid: string, otherUid: string)
     }
   }
   return false;
+};// Privacy settings update
+export const updatePrivacySettings = async (uid: string, settings: { incognito?: boolean, blurPhoto?: boolean }) => {
+  try {
+    await updateDoc(doc(db, 'users', uid), {
+      ...settings,
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 };
