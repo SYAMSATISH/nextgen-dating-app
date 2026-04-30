@@ -16,24 +16,31 @@ import Swiper from "react-native-deck-swiper";
 const { width, height } = Dimensions.get("window");
 
 const CURRENT_USER_ID = "Ao5bEhPi8nfSUhu1rH79goZ4Bjs1";
-const CURRENT_USER = { name: "Ravi Kumar", intent: "relationship", bio: "Software developer from Hyderabad" };
+const CURRENT_USER = { name: "Ravi Kumar", intent: "relationship", bio: "Software developer from Hyderabad", age: 26 };
 
-const PeopleCard = () => {
+const PeopleCard = ({ selectedMood }: { selectedMood?: string }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [scores, setScores] = useState<{[key: string]: {score: number, reason: string}}>({});
 
   useEffect(() => {
     loadUsers();
-  }, []);
+  }, [selectedMood]);
 
   const loadUsers = async () => {
+    setLoading(true);
     const fetchedUsers = await fetchUsersFromFirebase();
-    const otherUsers = fetchedUsers.filter(u => u.id !== CURRENT_USER_ID);
+    let otherUsers = fetchedUsers.filter(u => u.id !== CURRENT_USER_ID);
+
+    // Mood filter
+    if (selectedMood) {
+      const moodFiltered = otherUsers.filter(u => (u as any).currentMood === selectedMood);
+      if (moodFiltered.length > 0) otherUsers = moodFiltered;
+    }
+
     setUsers(otherUsers);
     setLoading(false);
 
-    // AI scores background lo calculate cheyyi
     const scoreMap: any = {};
     for (const user of otherUsers) {
       const result = getCompatibilityScore(CURRENT_USER, user);
@@ -93,6 +100,11 @@ const PeopleCard = () => {
                 </Text>
                 {card.bio && (
                   <Text style={styles.bioText}>{card.bio}</Text>
+                )}
+                {(card as any).currentMood && (
+                  <Text style={styles.moodText}>
+                    Mood: {(card as any).currentMood}
+                  </Text>
                 )}
                 {scores[card.id] && (
                   <View style={styles.scoreContainer}>
@@ -163,7 +175,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: width * 0.9,
-    height: height * 0.8,
+    height: height * 0.7,
     borderRadius: 10,
     overflow: "hidden",
     backgroundColor: "#fff",
@@ -190,6 +202,12 @@ const styles = StyleSheet.create({
     color: "#ddd",
     fontSize: 14,
     marginTop: 4,
+  },
+  moodText: {
+    color: "#FFD700",
+    fontSize: 13,
+    marginTop: 4,
+    fontWeight: "600",
   },
   scoreContainer: {
     backgroundColor: "rgba(233, 30, 99, 0.85)",
