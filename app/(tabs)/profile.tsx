@@ -1,13 +1,14 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import { AntDesign, Ionicons } from "@expo/vector-icons";
 import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
-import { auth } from "@/constants/appwrite";
+import { auth, db } from "@/constants/appwrite";
 import { updatePrivacySettings } from "@/DB/userDB";
+import { doc, getDoc } from "firebase/firestore";
 
 const PLANS = [
   { plan: "Get exclusive photo insights", p1: true, p2: true },
@@ -20,10 +21,48 @@ const PLANS = [
   { plan: "Two compliments a week", p1: true, p2: true },
 ];
 
+const ACHIEVEMENTS = [
+  { id: 'first_match', icon: '💕', title: 'First Match!', desc: 'Got your first match', unlocked: true },
+  { id: 'streak_3', icon: '🔥', title: '3 Day Streak', desc: 'Chat 3 days in a row', unlocked: true },
+  { id: 'streak_7', icon: '⚡', title: 'Week Warrior', desc: 'Chat 7 days in a row', unlocked: false },
+  { id: 'profile_complete', icon: '⭐', title: 'Profile Star', desc: 'Complete your profile', unlocked: true },
+  { id: 'super_match', icon: '🏆', title: 'Super Match', desc: 'Get 90%+ compatibility', unlocked: false },
+  { id: 'social', icon: '👥', title: 'Social Butterfly', desc: 'Match with 5 people', unlocked: false },
+];
+
 const profile = () => {
   const router = useRouter();
   const [incognito, setIncognito] = useState(false);
   const [blurPhoto, setBlurPhoto] = useState(false);
+  const [profileScore, setProfileScore] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [userName, setUserName] = useState('Profile');
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      setUserName(data.name || 'Profile');
+      setIncognito(data.incognito || false);
+      setBlurPhoto(data.blurPhoto || false);
+      setStreak(data.streak || 0);
+
+      // Profile score calculate cheyyi
+      let score = 0;
+      if (data.name) score += 20;
+      if (data.bio) score += 20;
+      if (data.photo) score += 20;
+      if (data.intent) score += 20;
+      if (data.age) score += 20;
+      setProfileScore(score);
+    }
+  };
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -33,99 +72,96 @@ const profile = () => {
   const handleIncognito = async (value: boolean) => {
     setIncognito(value);
     const uid = auth.currentUser?.uid;
-    if (uid) {
-      await updatePrivacySettings(uid, { incognito: value });
-    }
-    if (value) {
-      Alert.alert('Incognito Mode', 'You are now invisible to other users!');
-    }
+    if (uid) await updatePrivacySettings(uid, { incognito: value });
+    if (value) Alert.alert('Incognito Mode', 'You are now invisible to other users!');
   };
 
   const handleBlurPhoto = async (value: boolean) => {
     setBlurPhoto(value);
     const uid = auth.currentUser?.uid;
-    if (uid) {
-      await updatePrivacySettings(uid, { blurPhoto: value });
-    }
+    if (uid) await updatePrivacySettings(uid, { blurPhoto: value });
   };
 
   const handleScreenshotAlert = () => {
-    Alert.alert(
-      '📸 Screenshot Detected!',
-      'Please respect other users privacy. Screenshots are not allowed in chats.',
-      [{ text: 'OK' }]
-    );
+    Alert.alert('📸 Screenshot Detected!', 'Please respect others privacy. Screenshots are not allowed in chats.', [{ text: 'OK' }]);
   };
 
   const headerbutton = () => <AntDesign name="setting" size={24} color="black" />;
 
   return (
     <ScrollView style={{ paddingHorizontal: 8 }}>
-      <View style={{ gap: 10 }}>
+      <View style={{ gap: 12 }}>
         <Header headerTitle={"Profile"} button={headerbutton} />
 
-        {/* Avatar + Logout */}
+        {/* Avatar + Name + Logout */}
         <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-          <Avatar
-            size={80}
-            image="https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=400"
-          />
+          <Avatar size={80} image="https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=400" />
           <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 22, fontWeight: "600" }}>Profile</Text>
+            <Text style={{ fontSize: 22, fontWeight: "600", color: 'white' }}>{userName}</Text>
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
               <Text style={styles.logoutText}>🚪 Logout</Text>
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* Gamification Section */}
+        <View style={styles.gamificationSection}>
+          <Text style={styles.sectionTitle}>🏆 Your Stats</Text>
+
+          {/* Profile Score */}
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{profileScore}%</Text>
+              <Text style={styles.statLabel}>Profile Score</Text>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${profileScore}%` as any }]} />
+              </View>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>🔥 {streak}</Text>
+              <Text style={styles.statLabel}>Day Streak</Text>
+            </View>
+          </View>
+
+          {/* Achievements */}
+          <Text style={[styles.sectionTitle, { marginTop: 8 }]}>🎯 Achievements</Text>
+          <View style={styles.achievementsGrid}>
+            {ACHIEVEMENTS.map((achievement) => (
+              <View
+                key={achievement.id}
+                style={[styles.achievementCard, !achievement.unlocked && styles.achievementLocked]}
+              >
+                <Text style={styles.achievementIcon}>{achievement.icon}</Text>
+                <Text style={styles.achievementTitle}>{achievement.title}</Text>
+                <Text style={styles.achievementDesc}>{achievement.desc}</Text>
+                {!achievement.unlocked && (
+                  <Text style={styles.lockedText}>🔒 Locked</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        </View>
+
         {/* Privacy Settings */}
         <View style={styles.privacySection}>
           <Text style={styles.sectionTitle}>🔒 Privacy Settings</Text>
-
-          {/* Incognito Mode */}
           <View style={styles.privacyRow}>
             <View style={styles.privacyInfo}>
               <Text style={styles.privacyLabel}>🕵️ Incognito Mode</Text>
               <Text style={styles.privacyDesc}>Hide your profile from others</Text>
             </View>
-            <Switch
-              value={incognito}
-              onValueChange={handleIncognito}
-              trackColor={{ false: '#E0E0E0', true: '#E91E63' }}
-              thumbColor={incognito ? '#fff' : '#fff'}
-            />
+            <Switch value={incognito} onValueChange={handleIncognito} trackColor={{ false: '#E0E0E0', true: '#E91E63' }} />
           </View>
-
-          {/* Blur Photo */}
           <View style={styles.privacyRow}>
             <View style={styles.privacyInfo}>
               <Text style={styles.privacyLabel}>🌫️ Blur My Photo</Text>
               <Text style={styles.privacyDesc}>Show blurred photo until match</Text>
             </View>
-            <Switch
-              value={blurPhoto}
-              onValueChange={handleBlurPhoto}
-              trackColor={{ false: '#E0E0E0', true: '#E91E63' }}
-              thumbColor={blurPhoto ? '#fff' : '#fff'}
-            />
+            <Switch value={blurPhoto} onValueChange={handleBlurPhoto} trackColor={{ false: '#E0E0E0', true: '#E91E63' }} />
           </View>
-
-          {/* Screenshot Alert Test */}
           <TouchableOpacity style={styles.screenshotBtn} onPress={handleScreenshotAlert}>
             <Text style={styles.screenshotText}>📸 Test Screenshot Alert</Text>
           </TouchableOpacity>
-        </View>
-
-        {/* Spotlight */}
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <View style={styles.spotlightCard}>
-            <View style={styles.circle}><AntDesign name="star" size={24} color="black" /></View>
-            <View><Text style={{ fontWeight: "800", color: "white" }}>Spotlight</Text><Text>Stand out</Text></View>
-          </View>
-          <View style={styles.spotlightCard}>
-            <View style={styles.circle}><AntDesign name="star" size={24} color="black" /></View>
-            <View><Text style={{ fontWeight: "800", color: "white" }}>Spotlight</Text><Text>Stand out</Text></View>
-          </View>
         </View>
 
         {/* Premium Cards */}
@@ -157,6 +193,7 @@ const profile = () => {
             </View>
           ))}
         </View>
+
       </View>
     </ScrollView>
   );
@@ -167,8 +204,22 @@ export default profile;
 const styles = StyleSheet.create({
   logoutButton: { backgroundColor: "#ff4444", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, alignItems: "center" },
   logoutText: { color: "white", fontWeight: "bold", fontSize: 16 },
+  gamificationSection: { backgroundColor: '#1a1a2e', borderRadius: 16, padding: 16, gap: 8 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: 'white' },
+  statsRow: { flexDirection: 'row', gap: 10 },
+  statCard: { flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 12, alignItems: 'center', gap: 4 },
+  statNumber: { fontSize: 24, fontWeight: 'bold', color: '#E91E63' },
+  statLabel: { fontSize: 12, color: '#aaa' },
+  progressBar: { width: '100%', height: 6, backgroundColor: '#333', borderRadius: 3, marginTop: 4 },
+  progressFill: { height: 6, backgroundColor: '#E91E63', borderRadius: 3 },
+  achievementsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  achievementCard: { width: '30%', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 8, alignItems: 'center', gap: 2 },
+  achievementLocked: { opacity: 0.5 },
+  achievementIcon: { fontSize: 24 },
+  achievementTitle: { fontSize: 11, fontWeight: '600', color: 'white', textAlign: 'center' },
+  achievementDesc: { fontSize: 9, color: '#888', textAlign: 'center' },
+  lockedText: { fontSize: 9, color: '#E91E63', marginTop: 2 },
   privacySection: { backgroundColor: '#1a1a2e', borderRadius: 16, padding: 16, gap: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: 'white', marginBottom: 4 },
   privacyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#333' },
   privacyInfo: { flex: 1 },
   privacyLabel: { fontSize: 15, fontWeight: '600', color: 'white' },
