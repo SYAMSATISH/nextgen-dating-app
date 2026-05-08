@@ -1,167 +1,175 @@
 import {
   StyleSheet,
-  Image,
-  Platform,
   View,
   Text,
-  FlatList,
-  ImageBackground,
   ScrollView,
+  TouchableOpacity,
+  FlatList,
 } from "react-native";
-
-import { Collapsible } from "@/components/Collapsible";
-import { ExternalLink } from "@/components/ExternalLink";
-import ParallaxScrollView from "@/components/ParallaxScrollView";
-import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
-import { IconSymbol } from "@/components/ui/IconSymbol";
+import React, { useState } from "react";
 import Header from "@/components/Header";
-import { EvilIcons, Octicons } from "@expo/vector-icons";
-import { matchwithgoalData, RECOMMENDATION_USER } from "@/DB/userDB";
-import UserCard from "@/components/UserCard";
+import { EvilIcons } from "@expo/vector-icons";
+import { useTheme } from "@/constants/ThemeContext";
+
+const COMMUNITIES = [
+  { id: '1', icon: '💻', name: 'Tech Lovers', members: 1240, color: '#4CAF50' },
+  { id: '2', icon: '🎵', name: 'Music Vibes', members: 890, color: '#9C27B0' },
+  { id: '3', icon: '✈️', name: 'Travel Bugs', members: 2100, color: '#2196F3' },
+  { id: '4', icon: '🍕', name: 'Foodies', members: 1560, color: '#FF5722' },
+  { id: '5', icon: '📚', name: 'Book Club', members: 430, color: '#795548' },
+  { id: '6', icon: '🎮', name: 'Gamers', members: 980, color: '#607D8B' },
+  { id: '7', icon: '🏋️', name: 'Fitness', members: 720, color: '#F44336' },
+  { id: '8', icon: '🎨', name: 'Artists', members: 560, color: '#FF9800' },
+];
+
+const MODES = [
+  { id: 'dating', icon: '💕', label: 'Dating' },
+  { id: 'friends', icon: '🤝', label: 'Friends' },
+  { id: 'networking', icon: '💼', label: 'Network' },
+];
 
 export default function Discover() {
-  const button = () => <EvilIcons name="question" size={24} color="black" />;
-  const GoalSection = (backgroundColor: string) => {
-    return (
-      <View style={{ gap: 5, paddingVertical: 15 }}>
-        <Text style={{ fontSize: 18, fontWeight: "bold" }}>
-          Same dating goal
-        </Text>
-        <View style={{ width: "100%", padding: 2 }}>
-          <FlatList
-            horizontal={true}
-            data={matchwithgoalData}
-            renderItem={({ item }) => (
-              <UserCard showLikeIcon={true} data={item} size="small" />
-            )}
-            keyExtractor={(item) => item?.id.toString()}
-            ItemSeparatorComponent={() => <View style={{ width: 10 }}></View>}
-            showsHorizontalScrollIndicator={false}
-          />
-        </View>
-      </View>
+  const { colors } = useTheme();
+  const [selectedMode, setSelectedMode] = useState('dating');
+  const [joinedCommunities, setJoinedCommunities] = useState<string[]>([]);
+  const button = () => <EvilIcons name="question" size={24} color={colors.text} />;
+
+  const toggleJoin = (id: string) => {
+    setJoinedCommunities(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
     );
   };
-  const CommonCommuity = (backgroundColor: string) => {
-    return (
-      <View
-        style={{
-          gap: 5,
-          backgroundColor: backgroundColor,
-          paddingVertical: 15,
-        }}
-      >
-        <Text style={{ fontSize: 18, fontWeight: "bold" }}>
-          Communities in common
-        </Text>
-        <View style={{ width: "100%", padding: 2 }}>
-          <FlatList
-            horizontal={true}
-            data={matchwithgoalData}
-            renderItem={({ item }) => (
-              <UserCard showLikeIcon={true} data={item} size="small" />
-            )}
-            keyExtractor={(item) => item.id}
-            ItemSeparatorComponent={() => <View style={{ width: 10 }}></View>}
-            showsHorizontalScrollIndicator={false}
-          />
-        </View>
-      </View>
-    );
-  };
-  const SimilarInterest = (backgroundColor: string) => {
-    return (
-      <View
-        style={{
-          gap: 5,
-          backgroundColor: backgroundColor,
-          paddingVertical: 15,
-        }}
-      >
-        <Text style={{ fontSize: 18, fontWeight: "bold" }}>
-          Similar interests
-        </Text>
-        <View style={{ width: "100%", padding: 2 }}>
-          <FlatList
-            horizontal={true}
-            data={matchwithgoalData}
-            renderItem={({ item }) => (
-              <UserCard showLikeIcon={true} data={item} size="small" />
-            )}
-            keyExtractor={(item) => item.id}
-            ItemSeparatorComponent={() => <View style={{ width: 10 }}></View>}
-            showsHorizontalScrollIndicator={false}
-          />
-        </View>
-      </View>
-    );
-  };
-  const Recommendataions = (backgroundColor: string) => {
-    return (
-      <View
-        style={{
-          gap: 5,
-          backgroundColor: backgroundColor,
-          paddingVertical: 15,
-        }}
-      >
-        <Text style={{ fontSize: 20, fontWeight: "bold" }}>
-          Recommendations for you
-        </Text>
-        <View style={{ width: "100%", padding: 2 }}>
-          <FlatList
-            horizontal={true}
-            data={RECOMMENDATION_USER}
-            renderItem={({ item }) => (
-              <UserCard showLikeIcon={true} size="large" data={item} />
-            )}
-            keyExtractor={(item) => item.id}
-            ItemSeparatorComponent={() => <View style={{ width: 10 }}></View>}
-            showsHorizontalScrollIndicator={false}
-          />
-        </View>
-      </View>
-    );
-  };
+
   return (
-    <ScrollView style={{ paddingHorizontal: 8 }}>
-      <Header headerTitle={"Discover"} button={button} />
-      <View
-        style={{
-          backgroundColor: "#ffa600",
-          width: 200,
-          borderRadius: 20,
-          paddingHorizontal: 4,
-          paddingVertical: 6,
-          justifyContent: "center",
-          alignItems: "center",
-          marginBottom: 8,
-        }}
-      >
-        <Text style={{ fontWeight: "400" }}>See new people in 15 hours</Text>
+    <ScrollView style={{ backgroundColor: colors.background, flex: 1 }}>
+      <View style={{ paddingHorizontal: 16, gap: 20, paddingBottom: 40 }}>
+        <Header headerTitle={"Discover"} button={button} />
+
+        {/* Mode Selector */}
+        <View style={[styles.modeSection, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            🎯 What are you here for?
+          </Text>
+          <View style={styles.modeRow}>
+            {MODES.map((mode) => (
+              <TouchableOpacity
+                key={mode.id}
+                style={[
+                  styles.modeChip,
+                  { borderColor: colors.border },
+                  selectedMode === mode.id && { backgroundColor: '#E91E63', borderColor: '#E91E63' }
+                ]}
+                onPress={() => setSelectedMode(mode.id)}
+              >
+                <Text style={styles.modeEmoji}>{mode.icon}</Text>
+                <Text style={[
+                  styles.modeLabel,
+                  { color: colors.text },
+                  selectedMode === mode.id && { color: 'white' }
+                ]}>
+                  {mode.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Communities */}
+        <View style={{ gap: 12 }}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            👥 Interest Communities
+          </Text>
+          <Text style={[styles.subTitle, { color: colors.subtext }]}>
+            Join communities to meet people with same interests
+          </Text>
+
+          <View style={styles.communitiesGrid}>
+            {COMMUNITIES.map((community) => {
+              const isJoined = joinedCommunities.includes(community.id);
+              return (
+                <View
+                  key={community.id}
+                  style={[styles.communityCard, { backgroundColor: colors.card }]}
+                >
+                  <View style={[styles.communityIcon, { backgroundColor: community.color + '20' }]}>
+                    <Text style={styles.communityEmoji}>{community.icon}</Text>
+                  </View>
+                  <Text style={[styles.communityName, { color: colors.text }]}>
+                    {community.name}
+                  </Text>
+                  <Text style={[styles.communityMembers, { color: colors.subtext }]}>
+                    {community.members.toLocaleString()} members
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.joinBtn,
+                      { backgroundColor: isJoined ? colors.border : community.color }
+                    ]}
+                    onPress={() => toggleJoin(community.id)}
+                  >
+                    <Text style={[styles.joinText, { color: isJoined ? colors.text : 'white' }]}>
+                      {isJoined ? '✓ Joined' : 'Join'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Trending */}
+        <View style={{ gap: 12 }}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            🔥 Trending Near You
+          </Text>
+          {[
+            { title: 'Weekend Hiking Trip', community: 'Travel Bugs', members: 24, icon: '🥾' },
+            { title: 'Coffee & Code Meetup', community: 'Tech Lovers', members: 18, icon: '☕' },
+            { title: 'Open Mic Night', community: 'Music Vibes', members: 35, icon: '🎤' },
+          ].map((event, i) => (
+            <TouchableOpacity
+              key={i}
+              style={[styles.eventCard, { backgroundColor: colors.card }]}
+            >
+              <Text style={styles.eventIcon}>{event.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
+                <Text style={[styles.eventCommunity, { color: colors.subtext }]}>
+                  {event.community} • {event.members} going
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.rsvpBtn}>
+                <Text style={styles.rsvpText}>RSVP</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          ))}
+        </View>
+
       </View>
-      <Text style={{ fontWeight: "300" }}>
-        Connect over common group with people who match your vibe, refreshed
-        every day.
-      </Text>
-      {Recommendataions("#fffff")}
-      {GoalSection("#fffff")}
-      {CommonCommuity("#e0dede")}
-      {SimilarInterest("fffff")}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: "#808080",
-    bottom: -90,
-    left: -35,
-    position: "absolute",
-  },
-  titleContainer: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  sectionTitle: { fontSize: 18, fontWeight: '700' },
+  subTitle: { fontSize: 13 },
+  modeSection: { borderRadius: 16, padding: 16, gap: 12 },
+  modeRow: { flexDirection: 'row', gap: 10 },
+  modeChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
+  modeEmoji: { fontSize: 18 },
+  modeLabel: { fontSize: 14, fontWeight: '600' },
+  communitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  communityCard: { width: '47%', borderRadius: 16, padding: 14, alignItems: 'center', gap: 8 },
+  communityIcon: { width: 56, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  communityEmoji: { fontSize: 28 },
+  communityName: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  communityMembers: { fontSize: 11, textAlign: 'center' },
+  joinBtn: { paddingHorizontal: 20, paddingVertical: 6, borderRadius: 20 },
+  joinText: { fontSize: 13, fontWeight: '600' },
+  eventCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, gap: 12 },
+  eventIcon: { fontSize: 32 },
+  eventTitle: { fontSize: 15, fontWeight: '600' },
+  eventCommunity: { fontSize: 12, marginTop: 2 },
+  rsvpBtn: { backgroundColor: '#E91E63', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
+  rsvpText: { color: 'white', fontSize: 12, fontWeight: '700' },
 });
