@@ -55,7 +55,7 @@ const SignupScreen = () => {
       setEmail('');
       setPassword('');
       setName('');
-      router.replace('/auth/onboarding');
+      router.replace('/(tabs)/VerificationScreen');
     } catch (error: any) {
       Alert.alert('Signup Error', error.message || 'Unknown error');
     } finally {

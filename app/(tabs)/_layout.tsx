@@ -1,105 +1,128 @@
-import { Redirect, Tabs, useRouter, useSegments } from "expo-router";
-import React, { useEffect } from "react";
-import { Platform } from "react-native";
-
-import { HapticTab } from "@/components/HapticTab";
-import { IconSymbol } from "@/components/ui/IconSymbol";
-import TabBarBackground from "@/components/ui/TabBarBackground";
-import { Colors } from "@/constants/Colors";
-import { useColorScheme } from "@/hooks/useColorScheme";
-import {
-  FontAwesome,
-  FontAwesome6,
-  Ionicons,
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
+import { Tabs } from "expo-router";
+import React from "react";
+import { View, StyleSheet, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons, MaterialCommunityIcons, FontAwesome } from "@expo/vector-icons";
+
+function TabIcon({ name, library, focused, label }: any) {
+  const Icon = library === 'ion' ? Ionicons :
+               library === 'mc' ? MaterialCommunityIcons : FontAwesome;
+  return (
+    <View style={styles.tabItem}>
+      <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+        <Icon name={name} size={20} color={focused ? '#fff' : '#666'} />
+      </View>
+      {focused && <Text style={styles.tabLabel}>{label}</Text>}
+    </View>
+  );
+}
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <SafeAreaView
-      style={{
-        flex: 1,
-        backgroundColor: Colors[colorScheme ?? "light"].background,
-      }}
-    >
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       <Tabs
         initialRouteName="people"
         screenOptions={{
-          animation: "shift",
-          tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
           headerShown: false,
-          tabBarButton: HapticTab,
-          tabBarBackground: TabBarBackground,
-          tabBarStyle: Platform.select({
-            ios: {
-              position: "absolute",
-            },
-            default: {},
-          }),
+          tabBarShowLabel: false,
+          tabBarStyle: styles.tabBar,
+          tabBarItemStyle: {
+            height: 90,
+            paddingVertical: 14,
+          },
         }}
       >
         <Tabs.Screen
           name="profile"
           options={{
-            title: "Profile",
-            tabBarIcon: ({ color }) => (
-              <FontAwesome name="user" size={24} color={color} />
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="user" library="fa" focused={focused} label="Profile" />
             ),
           }}
         />
         <Tabs.Screen
           name="discover"
           options={{
-            title: "Discover",
-            tabBarIcon: ({ color }) => (
-              <MaterialCommunityIcons
-                name="compass-outline"
-                size={24}
-                color={color}
-              />
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="compass-outline" library="mc" focused={focused} label="Discover" />
             ),
           }}
         />
         <Tabs.Screen
           name="people"
           options={{
-            title: "People",
-            tabBarIcon: ({ color }) => (
-              <IconSymbol size={28} name="person.3.fill" color={color} />
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="people" library="ion" focused={focused} label="People" />
             ),
           }}
         />
         <Tabs.Screen
           name="(chats)"
           options={{
-            title: "Chats",
-            tabBarIcon: ({ color }) => (
-              <Ionicons name="chatbubble" size={24} color={color} />
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="chatbubble-ellipses" library="ion" focused={focused} label="Chats" />
             ),
           }}
         />
-        {/* <Tabs.Screen
-          name="likedYou"
-          options={{
-            title: "liked You",
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={"heart"} size={24} color={color} />
-            ),
-          }}
-        /> */}
         <Tabs.Screen
           name="index"
           options={{
-            title: "liked You",
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={"heart"} size={24} color={color} />
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="heart" library="ion" focused={focused} label="Liked You" />
             ),
           }}
+        />
+        <Tabs.Screen
+          name="VerificationScreen"
+          options={{ href: null }}
         />
       </Tabs>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    position: 'absolute',
+    bottom: 20,
+    left: 16,
+    right: 16,
+    height: 90,
+    borderRadius: 45,
+    borderTopWidth: 0,
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+  },
+  tabItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconWrapActive: {
+    backgroundColor: '#FF2D7A',
+    shadowColor: '#FF2D7A',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  tabLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#FF2D7A',
+    letterSpacing: 0.5,
+  },
+});
