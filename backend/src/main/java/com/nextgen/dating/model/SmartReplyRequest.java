@@ -1,15 +1,42 @@
 package com.nextgen.dating.model;
-
-import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
 import java.util.List;
 
-@Data
 public class SmartReplyRequest {
-    @NotBlank(message = "senderName is required")
+
     private String senderName;
-    @NotBlank(message = "lastMessage is required")
     private String lastMessage;
-    private List<String> conversationHistory;
-    private String tone = "casual";
+private List<String> conversationHistory;
+    private String tone;
+
+    public String getSenderName() {
+        return senderName;
+    }
+
+    public String getLastMessage() {
+        return lastMessage;
+    }
+
+    public List<String> getConversationHistory() {
+        return conversationHistory;
+    }
+
+    public String getTone() {
+        return tone;
+    }
+
+    public void setSenderName(String senderName) {
+        this.senderName = senderName;
+    }
+
+    public void setLastMessage(String lastMessage) {
+        this.lastMessage = lastMessage;
+    }
+
+    public void setConversationHistory(List<String> conversationHistory) {
+        this.conversationHistory = conversationHistory;
+    }
+
+    public void setTone(String tone) {
+        this.tone = tone;
+    }
 }

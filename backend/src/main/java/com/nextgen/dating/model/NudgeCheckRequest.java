@@ -1,19 +1,41 @@
 package com.nextgen.dating.model;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import lombok.Data;
-
-@Data
 public class NudgeCheckRequest {
-    @NotBlank(message = "matchId is required")
+
     private String matchId;
-    @NotBlank(message = "user1Name is required")
-    private String user1Name;
-    @NotBlank(message = "user2Name is required")
     private String user2Name;
-    @NotNull(message = "lastMessageTimestamp is required")
-    private Long lastMessageTimestamp;
-    private String lastMessageSender;
     private String lastMessageText;
+    private Long lastMessageTimestamp;
+
+    public String getMatchId() {
+        return matchId;
+    }
+
+    public String getUser2Name() {
+        return user2Name;
+    }
+
+    public String getLastMessageText() {
+        return lastMessageText;
+    }
+
+    public Long getLastMessageTimestamp() {
+        return lastMessageTimestamp;
+    }
+
+    public void setMatchId(String matchId) {
+        this.matchId = matchId;
+    }
+
+    public void setUser2Name(String user2Name) {
+        this.user2Name = user2Name;
+    }
+
+    public void setLastMessageText(String lastMessageText) {
+        this.lastMessageText = lastMessageText;
+    }
+
+    public void setLastMessageTimestamp(Long lastMessageTimestamp) {
+        this.lastMessageTimestamp = lastMessageTimestamp;
+    }
 }

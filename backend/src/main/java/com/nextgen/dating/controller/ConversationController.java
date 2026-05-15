@@ -25,13 +25,13 @@ public class ConversationController {
         this.nudgeService = nudgeService;
     }
 
-    @PostMapping("/icebreakers")
-    public ResponseEntity<IcebreakerResponse> generateIcebreakers(
-            @Valid @RequestBody IcebreakerRequest request) {
-        IcebreakerResponse response = icebreakerService.generateIcebreakers(request);
-        if (!response.isSuccess()) return ResponseEntity.internalServerError().body(response);
-        return ResponseEntity.ok(response);
-    }
+    // @PostMapping("/icebreakers")
+    // public ResponseEntity<IcebreakerResponse> generateIcebreakers(
+    //         @Valid @RequestBody IcebreakerRequest request) {
+    //     IcebreakerResponse response = icebreakerService.generateIcebreakers(request);
+    //     if (!response.isSuccess()) return ResponseEntity.internalServerError().body(response);
+    //     return ResponseEntity.ok(response);
+    // }
 
     @PostMapping("/smart-reply")
     public ResponseEntity<SmartReplyResponse> getSmartReplies(
