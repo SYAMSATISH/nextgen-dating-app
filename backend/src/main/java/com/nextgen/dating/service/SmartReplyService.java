@@ -29,25 +29,17 @@ public class SmartReplyService {
                     Tone: %s
                     Each reply under 20 words.
                     One direct, one question, one playful.
-                    Return ONLY a JSON array of 3 strings.
+                    Return ONLY a JSON array of 3 strings, nothing else.
+                    Example: ["Reply 1", "Reply 2", "Reply 3"]
                     """, tone);
 
-            String history = "";
-            if (request.getConversationHistory() != null && !request.getConversationHistory().isEmpty()) {
-                history = request.getConversationHistory().stream()
-                        .map(m -> "- " + m)
-                        .collect(Collectors.joining("\n"));
-            }
-
             String userPrompt = String.format("""
-                    %s needs reply suggestions.
-                    Recent chat:
-                    %s
+                    Person: %s
                     Last message received: "%s"
-                    Generate 3 replies for %s.
+                    Generate 3 reply suggestions.
                     """,
-                    request.getSenderName(), history,
-                    request.getLastMessage(), request.getSenderName()
+                    request.getSenderName(),
+                    request.getLastMessage()
             );
 
             String raw = claudeApiService.callClaude(systemPrompt, userPrompt);
@@ -58,14 +50,15 @@ public class SmartReplyService {
                     .tone(tone)
                     .success(true)
                     .build();
+
         } catch (Exception e) {
             return SmartReplyResponse.builder()
                     .success(false)
                     .error(e.getMessage())
                     .suggestions(List.of(
-                        "That's really interesting, tell me more!",
-                        "Wow, what made you feel that way?",
-                        "Ha, I can totally relate to that!"
+                        "That sounds amazing, tell me more!",
+                        "Really? What made you feel that way?",
+                        "Ha, same here! Great minds think alike 😄"
                     ))
                     .build();
         }

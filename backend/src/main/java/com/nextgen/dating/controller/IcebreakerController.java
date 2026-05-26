@@ -1,30 +1,29 @@
 package com.nextgen.dating.controller;
 
+import com.nextgen.dating.model.IcebreakerRequest;
+import com.nextgen.dating.model.IcebreakerResponse;
+import com.nextgen.dating.service.IcebreakerService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.*;
 
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*")
 public class IcebreakerController {
 
+    private final IcebreakerService icebreakerService;
+
+    public IcebreakerController(IcebreakerService icebreakerService) {
+        this.icebreakerService = icebreakerService;
+    }
+    
+
     @PostMapping("/icebreakers")
-    public ResponseEntity<?> getIcebreakers(@RequestBody Map<String, Object> request) {
-        Map<String, Object> user1 = (Map<String, Object>) request.get("user1");
-        Map<String, Object> user2 = (Map<String, Object>) request.get("user2");
-        
-        String name1 = (String) user1.get("name");
-        String name2 = (String) user2.get("name");
-        
-        List<String> icebreakers = new ArrayList<>();
-        icebreakers.add("Hi " + name2 + "! What's your favorite hobby?");
-        icebreakers.add("Hey " + name2 + ", " + name1 + " wants to know your favorite movie!");
-        icebreakers.add("What's one thing you can't live without?");
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("icebreakers", icebreakers);
-        
+    public ResponseEntity<IcebreakerResponse> generateIcebreakers(
+            @Valid @RequestBody IcebreakerRequest request) {
+        IcebreakerResponse response = icebreakerService.generateIcebreakers(request);
+        if (!response.isSuccess()) return ResponseEntity.internalServerError().body(response);
         return ResponseEntity.ok(response);
     }
 }

@@ -39,15 +39,13 @@ public class IcebreakerService {
                     """;
 
             String userPrompt = String.format("""
-                    User1: %s, interests: %s, bio: %s
-                    User2: %s, interests: %s, bio: %s
+                    User1: %s, interests: %s
+                    User2: %s, interests: %s
                     Shared: %s
                     Generate 3 icebreakers for %s to send to %s.
                     """,
                     request.getUser1Name(), request.getUser1Interests(),
-                    request.getUser1Bio() != null ? request.getUser1Bio() : "none",
                     request.getUser2Name(), request.getUser2Interests(),
-                    request.getUser2Bio() != null ? request.getUser2Bio() : "none",
                     sharedNote,
                     request.getUser1Name(), request.getUser2Name()
             );
@@ -60,6 +58,7 @@ public class IcebreakerService {
                     .sharedInterestNote(sharedNote)
                     .success(true)
                     .build();
+
         } catch (Exception e) {
             return IcebreakerResponse.builder()
                     .success(false)

@@ -2,13 +2,13 @@ package com.nextgen.dating.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 
 @Service
 public class ClaudeApiService {
@@ -25,41 +25,56 @@ public class ClaudeApiService {
     @Value("${claude.api.version}")
     private String apiVersion;
 
-    private final WebClient webClient;
-    private final ObjectMapper objectMapper;
-
-    public ClaudeApiService(WebClient.Builder webClientBuilder, ObjectMapper objectMapper) {
-        this.webClient = webClientBuilder.build();
-        this.objectMapper = objectMapper;
-    }
+    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public String callClaude(String systemPrompt, String userPrompt) {
         try {
-            ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("model", model);
-            requestBody.put("max_tokens", 1000);
-            if (systemPrompt != null && !systemPrompt.isBlank()) {
-                requestBody.put("system", systemPrompt);
-            }
-            ArrayNode messages = objectMapper.createArrayNode();
-            ObjectNode userMessage = objectMapper.createObjectNode();
-            userMessage.put("role", "user");
-            userMessage.put("content", userPrompt);
-            messages.add(userMessage);
-            requestBody.set("messages", messages);
+            String body = String.format("""
+                {
+                    "model": "%s",
+                    "max_tokens": 1000,
+                    "system": "%s",
+                    "messages": [
+                        {"role": "user", "content": "%s"}
+                    ]
+                }
+                """,
+                model,
+                systemPrompt.replace("\"", "\\\"").replace("\n", "\\n"),
+                userPrompt.replace("\"", "\\\"").replace("\n", "\\n")
+            );
 
-            String responseBody = webClient.post()
-                    .uri(apiUrl)
-                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(apiUrl))
+                    .header("Content-Type", "application/json")
                     .header("x-api-key", apiKey)
                     .header("anthropic-version", apiVersion)
-                    .bodyValue(requestBody.toString())
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build();
 
-            JsonNode response = objectMapper.readTree(responseBody);
-            return response.get("content").get(0).get("text").asText();
+            HttpResponse<String> response = httpClient.send(
+                    request, HttpResponse.BodyHandlers.ofString()
+            );
+
+            System.out.println("Status: " + response.statusCode());
+            System.out.println("Body: " + response.body());
+
+            JsonNode json = objectMapper.readTree(response.body());
+
+            // Error వస్తే throw చేయి
+            if (json.has("error")) {
+                throw new RuntimeException(json.get("error").get("message").asText());
+            }
+
+            // Content array నుండి text తీసుకో
+            JsonNode content = json.get("content");
+            if (content != null && content.isArray() && content.size() > 0) {
+                return content.get(0).get("text").asText();
+            }
+
+            throw new RuntimeException("No content in response: " + response.body());
+
         } catch (Exception e) {
             throw new RuntimeException("Claude API call failed: " + e.getMessage(), e);
         }
