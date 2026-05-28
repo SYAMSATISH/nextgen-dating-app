@@ -139,6 +139,7 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
 
+<<<<<<< HEAD
         {/* Quick Actions — 3 buttons */}
         <View style={styles.quickActionsRow}>
           <TouchableOpacity
@@ -163,6 +164,17 @@ export default function Profile() {
             <Text style={[styles.quickBtnText, { color: '#FF6B00', fontFamily: FONTS.semibold }]}>Speed Date</Text>
           </TouchableOpacity>
         </View>
+=======
+        {/* Date Diary Button */}
+        <TouchableOpacity
+          style={[styles.diaryBtn, { backgroundColor: 'rgba(255,45,122,0.1)', borderColor: '#FF2D7A' }]}
+          onPress={() => router.push('/datediary')}
+        >
+          <Ionicons name="book" size={18} color="#FF2D7A" />
+          <Text style={[styles.diaryBtnText, { color: '#FF2D7A', fontFamily: FONTS.semibold }]}>Open Date Diary 💘</Text>
+          <Ionicons name="chevron-forward" size={16} color="#FF2D7A" />
+        </TouchableOpacity>
+>>>>>>> 7a5fb3f31 (feat: date diary, vibe chart, log a date feature)
 
         {/* Profile Progress */}
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -392,9 +404,14 @@ const styles = StyleSheet.create({
   verifiedText: { fontSize: 12, color: '#4ade80' },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ff4444', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },
   logoutText: { color: '#fff', fontSize: 13 },
+<<<<<<< HEAD
   quickActionsRow: { flexDirection: 'row', gap: 8 },
   quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
   quickBtnText: { fontSize: 12 },
+=======
+  diaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 16, borderWidth: 1 },
+  diaryBtnText: { fontSize: 15, flex: 1, textAlign: 'center' },
+>>>>>>> 7a5fb3f31 (feat: date diary, vibe chart, log a date feature)
   section: { borderRadius: 20, padding: 16, gap: 12, borderWidth: 1 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { fontSize: 16, fontWeight: '700' },

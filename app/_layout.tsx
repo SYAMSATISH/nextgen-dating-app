@@ -24,6 +24,7 @@ function RootLayoutNav() {
         <Stack.Screen name="videodating" options={{ headerShown: false }} />
         <Stack.Screen name="datediary" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
+        <Stack.Screen name="datediary" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style={isDark ? "light" : "dark"} />
     </NavThemeProvider>
