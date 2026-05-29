@@ -35,7 +35,8 @@
           "backgroundColor": "#ffca55"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true
