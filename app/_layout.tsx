@@ -19,6 +19,8 @@ function RootLayoutNav() {
         <Stack.Screen name="auth/signup" options={{ headerShown: false }} />
         <Stack.Screen name="auth/onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="charscreenf" options={{ headerShown: true }} />
+        <Stack.Screen name="storyprofile" options={{ headerShown: false }} />
+        <Stack.Screen name="feedback" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style={isDark ? "light" : "dark"} />
