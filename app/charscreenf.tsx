@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  TextInput, FlatList, Platform, ActivityIndicator,
+  TextInput, FlatList, Platform, ActivityIndicator, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -9,6 +9,7 @@ import { auth, rtdb } from '@/constants/appwrite';
 import { ref, push, onValue, off } from 'firebase/database';
 import { useTheme } from '@/constants/ThemeContext';
 import { FONTS } from '@/constants/fonts';
+import { Audio } from 'expo-av';
 
 const ICEBREAKER_API = 'https://bookish-guide-qvqjrpjxrvr7h4x9q-8080.app.github.dev/api/icebreakers';
 const SMART_REPLY_API = 'https://bookish-guide-qvqjrpjxrvr7h4x9q-8080.app.github.dev/api/smart-reply';
@@ -18,6 +19,8 @@ type Message = {
   text: string;
   senderId: string;
   timestamp: number;
+  type?: 'text' | 'voice';
+  duration?: number;
 };
 
 const DEMO_OTHER_USER = { id: 'demo_user', name: 'Priya Sharma' };
@@ -35,6 +38,15 @@ export default function ChatScreen() {
   const [loadingIce, setLoadingIce] = useState(false);
   const [showIcebreakers, setShowIcebreakers] = useState(true);
 
+  // Voice recording
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const timerRef = useRef<any>(null);
+
   const chatId = [currentUid, DEMO_OTHER_USER.id].sort().join('_');
 
   useEffect(() => {
@@ -42,6 +54,7 @@ export default function ChatScreen() {
     if (Platform.OS !== 'web') loadMessages();
     return () => {
       if (Platform.OS !== 'web') off(ref(rtdb, `chats/${chatId}/messages`));
+      sound?.unloadAsync();
     };
   }, []);
 
@@ -102,11 +115,12 @@ export default function ChatScreen() {
       text: text.trim(),
       senderId: currentUid,
       timestamp: Date.now(),
+      type: 'text',
     };
     setMessages(prev => [...prev, newMsg]);
     if (Platform.OS !== 'web') {
       await push(ref(rtdb, `chats/${chatId}/messages`), {
-        text: text.trim(), senderId: currentUid, timestamp: Date.now(),
+        text: text.trim(), senderId: currentUid, timestamp: Date.now(), type: 'text',
       });
     }
     setInputText('');
@@ -116,8 +130,113 @@ export default function ChatScreen() {
     setTimeout(() => flatListRef.current?.scrollToEnd(), 100);
   };
 
+  // Voice recording functions
+  const startPulse = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.3, duration: 500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      ])
+    ).start();
+  };
+
+  const startRecording = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        alert('Voice messages work on mobile only!');
+        return;
+      }
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      setRecording(recording);
+      setIsRecording(true);
+      setRecordingDuration(0);
+      startPulse();
+      timerRef.current = setInterval(() => {
+        setRecordingDuration(prev => {
+          if (prev >= 60) { stopRecording(); return prev; }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (error) {
+      console.error('Recording error:', error);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording) return;
+    clearInterval(timerRef.current);
+    setIsRecording(false);
+    pulseAnim.stopAnimation();
+    pulseAnim.setValue(1);
+    await recording.stopAndUnloadAsync();
+    const uri = recording.getURI();
+    setRecording(null);
+    if (uri) {
+      const voiceMsg: Message = {
+        id: Date.now().toString(),
+        text: '🎤 Voice message',
+        senderId: currentUid,
+        timestamp: Date.now(),
+        type: 'voice',
+        duration: recordingDuration,
+      };
+      setMessages(prev => [...prev, voiceMsg]);
+      setShowIcebreakers(false);
+      setTimeout(() => flatListRef.current?.scrollToEnd(), 100);
+    }
+  };
+
+  const playVoiceMessage = async (messageId: string) => {
+    if (playingId === messageId) {
+      await sound?.stopAsync();
+      setPlayingId(null);
+      return;
+    }
+    setPlayingId(messageId);
+    setTimeout(() => setPlayingId(null), 3000);
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isMe = item.senderId === currentUid;
+
+    if (item.type === 'voice') {
+      return (
+        <View style={[styles.messageRow, isMe && styles.messageRowMe]}>
+          <TouchableOpacity
+            style={[styles.voiceBubble, isMe ? styles.voiceBubbleMe : [styles.voiceBubbleOther, { backgroundColor: colors.card }]]}
+            onPress={() => playVoiceMessage(item.id)}
+          >
+            <Ionicons
+              name={playingId === item.id ? "pause" : "play"}
+              size={20}
+              color={isMe ? '#fff' : '#FF2D7A'}
+            />
+            <View style={[styles.voiceWave, { backgroundColor: isMe ? 'rgba(255,255,255,0.4)' : 'rgba(255,45,122,0.3)' }]}>
+              {[...Array(12)].map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.waveBar,
+                    {
+                      height: Math.random() * 16 + 6,
+                      backgroundColor: isMe ? '#fff' : '#FF2D7A',
+                      opacity: playingId === item.id ? 1 : 0.6,
+                    }
+                  ]}
+                />
+              ))}
+            </View>
+            <Text style={[styles.voiceDuration, { color: isMe ? '#fff' : colors.subtext, fontFamily: FONTS.regular }]}>
+              {item.duration || 0}s
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.messageRow, isMe && styles.messageRowMe]}>
         <View style={[styles.messageBubble, isMe ? styles.bubbleMe : [styles.bubbleOther, { backgroundColor: colors.card }]]}>
@@ -160,25 +279,40 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* Input Row with Voice */}
       <View style={[styles.inputRow, { backgroundColor: '#1a1a1a', borderTopColor: colors.border, marginBottom: Platform.OS === 'web' ? 84 : 130 }]}>
-        <TouchableOpacity style={styles.attachBtn}>
-          <Ionicons name="add" size={22} color="#888" />
-        </TouchableOpacity>
-        <TextInput
-          style={[styles.input, { color: '#fff', fontFamily: FONTS.regular }]}
-          placeholder="Type a message..."
-          placeholderTextColor="#555"
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, { backgroundColor: inputText.trim() ? '#FF2D7A' : '#2a2a2a' }]}
-          onPress={() => sendMessage(inputText)}
-          disabled={!inputText.trim()}
-        >
-          <Ionicons name="send" size={18} color="#fff" />
-        </TouchableOpacity>
+        {isRecording ? (
+          <View style={styles.recordingRow}>
+            <Animated.View style={[styles.recordingDot, { transform: [{ scale: pulseAnim }] }]} />
+            <Text style={[styles.recordingText, { fontFamily: FONTS.medium }]}>
+              Recording... {recordingDuration}s
+            </Text>
+            <TouchableOpacity style={styles.stopRecordBtn} onPress={stopRecording}>
+              <Ionicons name="stop" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <TouchableOpacity style={styles.attachBtn} onPress={startRecording}>
+              <Ionicons name="mic" size={22} color="#FF2D7A" />
+            </TouchableOpacity>
+            <TextInput
+              style={[styles.input, { color: '#fff', fontFamily: FONTS.regular }]}
+              placeholder="Type a message..."
+              placeholderTextColor="#555"
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.sendBtn, { backgroundColor: inputText.trim() ? '#FF2D7A' : '#2a2a2a' }]}
+              onPress={() => sendMessage(inputText)}
+              disabled={!inputText.trim()}
+            >
+              <Ionicons name="send" size={18} color="#fff" />
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
@@ -241,6 +375,18 @@ const styles = StyleSheet.create({
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4ade80' },
   onlineText: { fontSize: 12 },
   callBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  messageRow: { flexDirection: 'row', marginBottom: 8 },
+  messageRowMe: { justifyContent: 'flex-end' },
+  messageBubble: { maxWidth: '75%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+  bubbleMe: { backgroundColor: '#FF2D7A', borderBottomRightRadius: 4 },
+  bubbleOther: { borderBottomLeftRadius: 4 },
+  messageText: { fontSize: 14, lineHeight: 20 },
+  voiceBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, maxWidth: '75%' },
+  voiceBubbleMe: { backgroundColor: '#FF2D7A', borderBottomRightRadius: 4 },
+  voiceBubbleOther: { borderBottomLeftRadius: 4 },
+  voiceWave: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8, height: 30 },
+  waveBar: { width: 3, borderRadius: 2 },
+  voiceDuration: { fontSize: 11 },
   emptyChat: { alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
   emptyIconWrap: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   emptyText: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
@@ -259,10 +405,8 @@ const styles = StyleSheet.create({
   attachBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#2a2a2a', alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, borderRadius: 25, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, maxHeight: 100, backgroundColor: '#2a2a2a' },
   sendBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  messageRow: { flexDirection: 'row', marginBottom: 8 },
-  messageRowMe: { justifyContent: 'flex-end' },
-  messageBubble: { maxWidth: '75%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
-  bubbleMe: { backgroundColor: '#FF2D7A', borderBottomRightRadius: 4 },
-  bubbleOther: { borderBottomLeftRadius: 4 },
-  messageText: { fontSize: 14, lineHeight: 20 },
+  recordingRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  recordingDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#FF2D7A' },
+  recordingText: { flex: 1, color: '#FF2D7A', fontSize: 14 },
+  stopRecordBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FF2D7A', alignItems: 'center', justifyContent: 'center' },
 });
