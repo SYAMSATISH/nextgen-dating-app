@@ -139,21 +139,28 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
 
-        {/* Quick Action Buttons */}
+        {/* Quick Actions — 3 buttons */}
         <View style={styles.quickActionsRow}>
           <TouchableOpacity
             style={[styles.quickBtn, { backgroundColor: 'rgba(255,45,122,0.1)', borderColor: '#FF2D7A' }]}
             onPress={() => router.push('/datediary')}
           >
-            <Ionicons name="book" size={18} color="#FF2D7A" />
-            <Text style={[styles.quickBtnText, { color: '#FF2D7A', fontFamily: FONTS.semibold }]}>Date Diary 💘</Text>
+            <Ionicons name="book" size={16} color="#FF2D7A" />
+            <Text style={[styles.quickBtnText, { color: '#FF2D7A', fontFamily: FONTS.semibold }]}>Date Diary</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.quickBtn, { backgroundColor: 'rgba(79,195,247,0.1)', borderColor: '#4FC3F7' }]}
             onPress={() => router.push('/storyprofile')}
           >
-            <Ionicons name="sparkles" size={18} color="#4FC3F7" />
-            <Text style={[styles.quickBtnText, { color: '#4FC3F7', fontFamily: FONTS.semibold }]}>Story Profile ✨</Text>
+            <Ionicons name="sparkles" size={16} color="#4FC3F7" />
+            <Text style={[styles.quickBtnText, { color: '#4FC3F7', fontFamily: FONTS.semibold }]}>Story</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickBtn, { backgroundColor: 'rgba(255,107,0,0.1)', borderColor: '#FF6B00' }]}
+            onPress={() => router.push('/videodating')}
+          >
+            <Ionicons name="videocam" size={16} color="#FF6B00" />
+            <Text style={[styles.quickBtnText, { color: '#FF6B00', fontFamily: FONTS.semibold }]}>Speed Date</Text>
           </TouchableOpacity>
         </View>
 
@@ -385,9 +392,9 @@ const styles = StyleSheet.create({
   verifiedText: { fontSize: 12, color: '#4ade80' },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ff4444', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },
   logoutText: { color: '#fff', fontSize: 13 },
-  quickActionsRow: { flexDirection: 'row', gap: 10 },
-  quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 16, borderWidth: 1 },
-  quickBtnText: { fontSize: 13 },
+  quickActionsRow: { flexDirection: 'row', gap: 8 },
+  quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
+  quickBtnText: { fontSize: 12 },
   section: { borderRadius: 20, padding: 16, gap: 12, borderWidth: 1 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { fontSize: 16, fontWeight: '700' },
