@@ -65,7 +65,7 @@ const People = () => {
       </ScrollView>
 
       {/* Cards */}
-      <PeopleCard selectedMood={selectedMood} />
+      <PeopleCard selectedMood={selectedMood} activeTab={activeTab} />
     </View>
   );
 };

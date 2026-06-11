@@ -99,7 +99,7 @@ export default function Profile() {
     { label: 'Add Bio', icon: 'document-text-outline', done: !!userBio, onPress: () => { setBioInput(userBio); setShowBioEdit(true); } },
     { label: 'Add Photo', icon: 'camera-outline', done: false, onPress: () => Alert.alert('Add Photo', 'Photo upload coming soon! 📸') },
     { label: 'Set Intent', icon: 'heart-outline', done: true, onPress: () => router.push('/auth/onboarding') },
-    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: true, onPress: () => router.push('/(tabs)/VerificationScreen') },
+    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/(tabs)/VerificationScreen') },
   ];
 
   return (
@@ -157,7 +157,7 @@ export default function Profile() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.quickBtn, { backgroundColor: 'rgba(255,107,0,0.1)', borderColor: '#FF6B00' }]}
-            onPress={() => router.push('/videodating')}
+            onPress={() => router.push('../videodating')}
           >
             <Ionicons name="videocam" size={16} color="#FF6B00" />
             <Text style={[styles.quickBtnText, { color: '#FF6B00', fontFamily: FONTS.semibold }]}>Speed Date</Text>

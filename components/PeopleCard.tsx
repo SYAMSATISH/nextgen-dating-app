@@ -8,17 +8,82 @@ import {
   Text, View, ActivityIndicator, TouchableOpacity,
 } from "react-native";
 import Swiper from "react-native-deck-swiper";
+import * as Location from 'expo-location';
+import { useTheme } from "@/constants/ThemeContext";
+import { FONTS } from "@/constants/fonts";
 
 const { width, height } = Dimensions.get("window");
 const CURRENT_USER_ID = "Ao5bEhPi8nfSUhu1rH79goZ4Bjs1";
 const CURRENT_USER = { name: "Ravi Kumar", intent: "relationship", bio: "Software developer from Hyderabad", age: 26 };
 
-const PeopleCard = ({ selectedMood }: { selectedMood?: string }) => {
+const PeopleCard = ({ selectedMood, activeTab }: { selectedMood?: string; activeTab?: string }) => {
+  const { colors, isDark } = useTheme();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [scores, setScores] = useState<{ [key: string]: { score: number; reason: string } }>({});
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-  useEffect(() => { loadUsers(); }, [selectedMood]);
+  useEffect(() => {
+    if (activeTab === 'nearby') {
+      loadNearbyUsers();
+    } else {
+      loadUsers();
+    }
+  }, [selectedMood, activeTab]);
+
+  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const loadNearbyUsers = async () => {
+    setNearbyLoading(true);
+    setLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLoading(false);
+        setNearbyLoading(false);
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+      setUserLocation({ lat: latitude, lng: longitude });
+
+      const fetchedUsers = await fetchUsersFromFirebase();
+      let otherUsers = fetchedUsers.filter(u => u.id !== CURRENT_USER_ID);
+
+      // Filter nearby users within 50km
+      const nearbyUsers = otherUsers.filter(u => {
+        const userLoc = (u as any).location;
+        if (!userLoc?.lat || !userLoc?.lng) return false;
+        const distance = getDistance(latitude, longitude, userLoc.lat, userLoc.lng);
+        return distance <= 50;
+      });
+
+      // If no nearby users, show all with distance tag
+      const finalUsers = nearbyUsers.length > 0 ? nearbyUsers : otherUsers;
+      setUsers(finalUsers);
+
+      const scoreMap: any = {};
+      for (const user of finalUsers) {
+        scoreMap[user.id] = getCompatibilityScore(CURRENT_USER, user);
+      }
+      setScores(scoreMap);
+    } catch (error) {
+      console.error('Nearby error:', error);
+      loadUsers();
+    }
+    setLoading(false);
+    setNearbyLoading(false);
+  };
 
   const loadUsers = async () => {
     setLoading(true);
@@ -53,7 +118,9 @@ const PeopleCard = ({ selectedMood }: { selectedMood?: string }) => {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#FF2D7A" />
-        <Text style={styles.loadingText}>Finding your matches...</Text>
+        <Text style={[styles.loadingText, { color: colors.subtext, fontFamily: FONTS.regular }]}>
+          {nearbyLoading ? '📍 Finding people near you...' : 'Finding your matches...'}
+        </Text>
       </View>
     );
   }
@@ -61,15 +128,29 @@ const PeopleCard = ({ selectedMood }: { selectedMood?: string }) => {
   if (users.length === 0) {
     return (
       <View style={styles.centered}>
-        <Text style={{ fontSize: 48 }}>💔</Text>
-        <Text style={styles.loadingText}>No more profiles!</Text>
-        <Text style={styles.loadingSub}>Check back later</Text>
+        <Text style={{ fontSize: 48 }}>
+          {activeTab === 'nearby' ? '📍' : '💔'}
+        </Text>
+        <Text style={[styles.loadingText, { color: colors.subtext, fontFamily: FONTS.regular }]}>
+          {activeTab === 'nearby' ? 'No one nearby!' : 'No more profiles!'}
+        </Text>
+        <Text style={[styles.loadingSub, { color: colors.subtext, fontFamily: FONTS.regular }]}>
+          {activeTab === 'nearby' ? 'Try expanding your search radius' : 'Check back later'}
+        </Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      {activeTab === 'nearby' && (
+        <View style={[styles.nearbyBanner, { backgroundColor: 'rgba(255,45,122,0.1)', borderColor: '#FF2D7A' }]}>
+          <Ionicons name="location" size={14} color="#FF2D7A" />
+          <Text style={[styles.nearbyText, { color: '#FF2D7A', fontFamily: FONTS.medium }]}>
+            Showing people within 50km
+          </Text>
+        </View>
+      )}
       <Swiper
         cards={users}
         renderCard={(card) => {
@@ -86,18 +167,21 @@ const PeopleCard = ({ selectedMood }: { selectedMood?: string }) => {
                   <Text style={styles.premiumText}>● PREMIUM</Text>
                 </View>
 
+                {/* Nearby badge */}
+                {activeTab === 'nearby' && (
+                  <View style={styles.nearbyBadge}>
+                    <Ionicons name="location" size={12} color="#fff" />
+                    <Text style={styles.nearbyBadgeText}>Nearby</Text>
+                  </View>
+                )}
+
                 {/* Bottom info */}
                 <View style={styles.infoSection}>
-                  {/* Name + age */}
                   <View style={styles.nameRow}>
                     <Text style={styles.nameText}>{card.name} {card.age}</Text>
                     <Ionicons name="heart-outline" size={22} color="#fff" />
                   </View>
-
-                  {/* Location */}
                   <Text style={styles.locationText}>📍 India</Text>
-
-                  {/* Stats row */}
                   <View style={styles.statsRow}>
                     {score && (
                       <View style={styles.statChip}>
@@ -159,80 +243,25 @@ export default PeopleCard;
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  loadingText: { color: '#888', fontSize: 16, fontWeight: '500' },
-  loadingSub: { color: '#555', fontSize: 13 },
-  card: {
-    width: width * 0.92,
-    height: height * 0.62,
-    borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#1a1a1a',
-  },
+  loadingText: { fontSize: 16, fontWeight: '500' },
+  loadingSub: { fontSize: 13 },
+  nearbyBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, marginBottom: 8 },
+  nearbyText: { fontSize: 12 },
+  card: { width: width * 0.92, height: height * 0.62, borderRadius: 24, overflow: 'hidden', backgroundColor: '#1a1a1a' },
   image: { width: '100%', height: '100%', justifyContent: 'space-between' },
   imageStyle: { borderRadius: 24 },
-  premiumBadge: {
-    alignSelf: 'flex-start',
-    margin: 16,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
+  premiumBadge: { alignSelf: 'flex-start', margin: 16, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   premiumText: { color: '#FFD700', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  infoSection: {
-    padding: 20,
-    paddingBottom: 16,
-    background: 'transparent',
-    backgroundImage: 'linear-gradient(transparent, rgba(0,0,0,0.9))',
-  },
+  nearbyBadge: { position: 'absolute', top: 16, right: 16, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FF2D7A', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  nearbyBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  infoSection: { padding: 20, paddingBottom: 16 },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   nameText: { fontSize: 26, fontWeight: '700', color: '#fff' },
   locationText: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
   statsRow: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
-  statChip: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
+  statChip: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   statText: { color: '#fff', fontSize: 12, fontWeight: '500' },
-  actionRow: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 24,
-    paddingVertical: 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  actionBtnGrey: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#2a2a2a',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  actionBtnPink: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#FF2D7A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#FF2D7A',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    elevation: 12,
-  },
+  actionRow: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 24, paddingVertical: 16, backgroundColor: 'rgba(0,0,0,0.6)' },
+  actionBtnGrey: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#2a2a2a', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  actionBtnPink: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#FF2D7A', alignItems: 'center', justifyContent: 'center', shadowColor: '#FF2D7A', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 16, elevation: 12 },
 });
