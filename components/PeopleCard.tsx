@@ -21,11 +21,12 @@ const PeopleCard = ({ selectedMood, activeTab }: { selectedMood?: string; active
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [scores, setScores] = useState<{ [key: string]: { score: number; reason: string } }>({});
+  const currentTab = activeTab || 'foryou';
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    if (activeTab === 'nearby') {
+    if (currentTab ==='nearby') {
       loadNearbyUsers();
     } else {
       loadUsers();

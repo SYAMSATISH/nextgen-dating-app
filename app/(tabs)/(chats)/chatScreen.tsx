@@ -199,14 +199,7 @@ export default function ChatScreen() {
         </View>
         <TouchableOpacity
           style={[styles.callBtn, { backgroundColor: 'rgba(255,45,122,0.15)' }]}
-          onPress={() => Alert.alert(
-            '📹 Video Call',
-            'Starting video call with ' + DEMO_OTHER_USER.name + '...',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Start Call', onPress: () => Alert.alert('Coming Soon!', 'Video calling feature will be available in next update! 🚀') }
-            ]
-          )}
+          onPress={() => alert('📹 Video Call with ' + DEMO_OTHER_USER.name + ' — Coming Soon! 🚀')}
         >
           <Ionicons name="videocam-outline" size={22} color="#FF2D7A" />
         </TouchableOpacity>
