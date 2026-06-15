@@ -16,6 +16,7 @@ const MOODS = [
 
 const People = () => {
   const [selectedMood, setSelectedMood] = useState('');
+  const [activeTab, setActiveTab] = useState('foryou'); // 👈 NEW: added missing state
 
   const handleMoodSelect = async (moodId: string) => {
     setSelectedMood(prev => prev === moodId ? '' : moodId);
@@ -40,11 +41,17 @@ const People = () => {
 
       {/* FOR YOU / NEARBY tabs */}
       <View style={styles.tabRow}>
-        <TouchableOpacity style={[styles.tabBtn, styles.tabBtnActive]}>
-          <Text style={styles.tabTextActive}>FOR YOU</Text>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'foryou' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('foryou')}
+        >
+          <Text style={activeTab === 'foryou' ? styles.tabTextActive : styles.tabText}>FOR YOU</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabBtn}>
-          <Text style={styles.tabText}>NEARBY</Text>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'nearby' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('nearby')}
+        >
+          <Text style={activeTab === 'nearby' ? styles.tabTextActive : styles.tabText}>NEARBY</Text>
         </TouchableOpacity>
       </View>
 

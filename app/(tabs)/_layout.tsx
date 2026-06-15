@@ -18,13 +18,6 @@ function TabIcon({ name, library, focused, label }: any) {
 }
 
 export default function TabLayout() {
-<<<<<<< HEAD
-=======
-  const { colors } = useTheme();
-  const segments = useSegments();
-  const isChatScreen = segments.some(s => s === 'charscreenf' || s === 'chatScreen');
-
->>>>>>> 7a5fb3f31 (feat: date diary, vibe chart, log a date feature)
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       <Tabs
