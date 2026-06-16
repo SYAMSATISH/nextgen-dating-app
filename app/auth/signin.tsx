@@ -33,27 +33,28 @@ export default function SignIn() {
   };
 
   const handleSignin = async () => {
-    if (!validate()) return;
-    
-    setLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      setTimeout(() => router.replace('/'), 500);
-    } catch (error: any) {
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        setErrors({ email: 'Email is not registered. Please sign up first.' });
-      } else if (error.code === 'auth/wrong-password') {
-        setErrors({ password: 'Incorrect password. Please try again.' });
-      } else if (error.code === 'auth/too-many-requests') {
-        setErrors({ general: 'Too many failed attempts. Please try again later.' });
-      } else {
-        setErrors({ general: error.message });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!validate()) return;
 
+  setLoading(true);
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+
+    // 🔥 IMPORTANT: directly go to tabs
+    router.replace("/(tabs)");
+
+  } catch (error: any) {
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+      setErrors({ email: 'Email is not registered. Please sign up first.' });
+    } else if (error.code === 'auth/wrong-password') {
+      setErrors({ password: 'Incorrect password. Please try again.' });
+    } else {
+      setErrors({ general: error.message });
+    }
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>

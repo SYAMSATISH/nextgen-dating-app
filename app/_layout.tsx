@@ -20,7 +20,7 @@ function RootLayoutNav() {
         <Stack.Screen name="auth/onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="charscreenf" options={{ headerShown: true }} />
         <Stack.Screen name="storyprofile" options={{ headerShown: false }} />
-        <Stack.Screen name="feedback" options={{ headerShown: false }} />
+        {/* <Stack.Screen name="feedback" options={{ headerShown: false }} /> */}
         <Stack.Screen name="videodating" options={{ headerShown: false }} />
         <Stack.Screen name="datediary" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />

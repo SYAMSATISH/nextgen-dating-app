@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Modal, TextInput, Alert, Dimensions,
 } from 'react-native';
+import { deleteDoc, doc } from "firebase/firestore";
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/constants/ThemeContext';
@@ -10,6 +11,7 @@ import { FONTS } from '@/constants/fonts';
 import { auth, db } from '@/constants/appwrite';
 import { collection, addDoc, getDocs, query, where, serverTimestamp, orderBy } from 'firebase/firestore';
 import { LineChart } from 'react-native-chart-kit';
+import { onAuthStateChanged } from "firebase/auth";
 
 const { width } = Dimensions.get('window');
 
@@ -45,56 +47,94 @@ export default function DateDiary() {
   const [selectedVibe, setSelectedVibe] = useState('');
   const [notes, setNotes] = useState('');
 
-  useEffect(() => { loadDates(); }, []);
+  useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (user) {
+      loadDates();
+    }
+  });
+
+  return unsubscribe;
+}, []);
 
   const loadDates = async () => {
-    try {
-      const uid = auth.currentUser?.uid;
-      if (!uid) return;
-      const q = query(collection(db, 'dateDiary'), where('userId', '==', uid), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      const entries: DateEntry[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data() as any,
-      }));
-      setDates(entries);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleAddDate = async () => {
-    if (!personName || !selectedVibe) {
-      Alert.alert('Required', 'Please enter person name and vibe!');
+  try {
+    const uid = auth.currentUser?.uid;
+    console.log("Loading dates for:", uid);
+    if (!uid) {
+      console.log("No logged in user");
       return;
     }
-    setLoading(true);
-    try {
-      const uid = auth.currentUser?.uid;
-      const vibe = VIBES.find(v => v.id === selectedVibe);
-      await addDoc(collection(db, 'dateDiary'), {
-        userId: uid,
-        personName,
-        place,
-        date: new Date().toISOString().split('T')[0],
-        vibe: selectedVibe,
-        notes,
-        score: vibe?.score || 3,
-        createdAt: serverTimestamp(),
-      });
-      setPersonName(''); setPlace(''); setSelectedVibe(''); setNotes('');
-      setShowAddModal(false);
-      await loadDates();
-    } catch (error) {
-      Alert.alert('Error', 'Could not save date entry');
-    }
-    setLoading(false);
-  };
 
+    const q = query(
+      collection(db, "dateDiary"),
+      where("userId", "==", uid)
+    );
+
+    const snapshot = await getDocs(q);
+    console.log("Documents found:", snapshot.size);
+    const entries = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...(doc.data() as any),
+    }));
+
+    console.log(entries);
+    setDates(entries);
+  } catch (error) {
+    console.log("Load Error:", error);
+  }
+};
+
+  const handleAddDate = async () => {
+  console.log("handleAddDate started");
+  if (!personName.trim() || !selectedVibe) {
+    Alert.alert("Required", "Please enter person name and select a vibe!");
+    return;
+  }
+  setLoading(true);
+  try {
+    const uid = auth.currentUser?.uid;
+    console.log("Current UID:", uid);
+    if (!uid) {
+      Alert.alert("Error", "User is not logged in.");
+      setLoading(false);
+      return;
+    }
+
+    const vibe = VIBES.find(v => v.id === selectedVibe);
+    const docRef = await addDoc(collection(db, "dateDiary"), {
+      userId: uid,
+      personName: personName.trim(),
+      place: place.trim(),
+      date: new Date().toISOString().split("T")[0],
+      vibe: selectedVibe,
+      notes: notes.trim(),
+      score: vibe?.score || 3,
+      createdAt: serverTimestamp(),
+    });
+
+    console.log("Document saved with id:", docRef.id);
+    setPersonName("");
+    setPlace("");
+    setSelectedVibe("");
+    setNotes("");
+    setShowAddModal(false);
+await loadDates();
+    Alert.alert("Success", "Date saved successfully!");
+  } catch (error: any) {
+    console.log("Save Error:", error);
+    Alert.alert("Save Error", error.message || JSON.stringify(error));
+  } finally {
+    setLoading(false);
+  }
+};
+const deleteDate = async (id: string) => {
+  await deleteDoc(doc(db, "dateDiary", id));
+  loadDates();
+};
   const totalDates = dates.length;
   const avgVibe = dates.length > 0 ? (dates.reduce((acc, d) => acc + d.score, 0) / dates.length).toFixed(1) : '0.0';
   const amazingCount = dates.filter(d => d.vibe === 'amazing').length;
-
   const chartData = dates.slice(0, 7).reverse().map(d => d.score);
   const chartLabels = dates.slice(0, 7).reverse().map(d => d.personName.slice(0, 4));
 
@@ -235,7 +275,10 @@ export default function DateDiary() {
                         "{entry.notes}"
                       </Text>
                     ) : null}
-                  </View>
+                    <TouchableOpacity onPress={() => deleteDate(entry.id)} style={{ alignSelf: "flex-end", marginTop: 10 }}>
+                      <Ionicons name="trash-outline" size={24} color="red" />
+                    </TouchableOpacity>
+           </View>
                 );
               })
             )}
