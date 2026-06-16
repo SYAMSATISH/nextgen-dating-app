@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform } from "react-native";
 import React, { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import Avatar from "@/components/Avatar";
@@ -29,6 +29,15 @@ const ACHIEVEMENTS = [
   { id: 'super_match', icon: 'trophy', title: 'Super Match', desc: 'Get 90%+ compatibility', unlocked: false, color: '#FFD700' },
   { id: 'social', icon: 'people', title: 'Social Butterfly', desc: 'Match with 5 people', unlocked: false, color: '#4FC3F7' },
 ];
+
+// ✅ Web + Mobile compatible alert
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 export default function Profile() {
   const router = useRouter();
@@ -75,7 +84,7 @@ export default function Profile() {
     setIncognito(value);
     const uid = auth.currentUser?.uid;
     if (uid) await updatePrivacySettings(uid, { incognito: value });
-    if (value) Alert.alert('Incognito Mode', 'You are now invisible to other users!');
+    if (value) showAlert('Incognito Mode', 'You are now invisible to other users!');
   };
 
   const handleBlurPhoto = async (value: boolean) => {
@@ -91,15 +100,23 @@ export default function Profile() {
       setUserBio(bioInput);
     }
     setShowBioEdit(false);
-    Alert.alert('✅ Bio saved!', 'Your bio has been updated.');
+    showAlert('✅ Bio saved!', 'Your bio has been updated.');
   };
 
   const PROGRESS_SECTIONS = [
-    { label: 'Basic Information', icon: 'person-outline', done: !!userName, onPress: () => Alert.alert('Basic Info', 'Name: ' + userName) },
+    { label: 'Basic Information', icon: 'person-outline', done: !!userName, onPress: () => showAlert('Basic Info', 'Name: ' + userName) },
     { label: 'Add Bio', icon: 'document-text-outline', done: !!userBio, onPress: () => { setBioInput(userBio); setShowBioEdit(true); } },
-    { label: 'Add Photo', icon: 'camera-outline', done: false, onPress: () => Alert.alert('Add Photo', 'Photo upload coming soon! 📸') },
+    { label: 'Add Photo', icon: 'camera-outline', done: false, onPress: () => showAlert('Add Photo', 'Photo upload coming soon! 📸') },
     { label: 'Set Intent', icon: 'heart-outline', done: true, onPress: () => router.push('/auth/onboarding') },
     { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/(tabs)/VerificationScreen') },
+  ];
+
+  const SETTINGS_ITEMS = [
+    { icon: 'notifications-outline', label: 'Notifications', color: '#FF6B00', onPress: () => showAlert('Notifications', 'Push notifications coming soon! 🔔') },
+    { icon: 'shield-outline', label: 'Privacy & Safety', color: '#4FC3F7', onPress: () => { setShowSettings(false); router.push('/auth/onboarding'); } },
+    { icon: 'help-circle-outline', label: 'Help & Support', color: '#4ade80', onPress: () => showAlert('Help & Support', 'Email us: support@nextgendating.com 📧') },
+    { icon: 'information-circle-outline', label: 'About App', color: '#A78BFA', onPress: () => showAlert('NextGen Dating App', 'Version 1.0.0\nBuilt with ❤️ by Team NextGen') },
+    { icon: 'star-outline', label: 'Rate the App', color: '#FFD700', onPress: () => showAlert('Rate Us! ⭐', 'Thank you for using NextGen Dating!') },
   ];
 
   return (
@@ -139,7 +156,7 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
 
-        {/* Quick Actions — 3 buttons */}
+        {/* Quick Actions */}
         <View style={styles.quickActionsRow}>
           <TouchableOpacity
             style={[styles.quickBtn, { backgroundColor: 'rgba(255,45,122,0.1)', borderColor: '#FF2D7A' }]}
@@ -276,7 +293,7 @@ export default function Profile() {
             </View>
             <Switch value={blurPhoto} onValueChange={handleBlurPhoto} trackColor={{ false: colors.border, true: '#FF2D7A' }} thumbColor="#fff" />
           </View>
-          <TouchableOpacity style={styles.screenshotBtn} onPress={() => Alert.alert('Screenshot Detected!', 'Please respect others privacy.')}>
+          <TouchableOpacity style={styles.screenshotBtn} onPress={() => showAlert('Screenshot Detected!', 'Please respect others privacy.')}>
             <Ionicons name="camera" size={18} color="#fff" />
             <Text style={[styles.screenshotText, { fontFamily: FONTS.bold }]}>Test Screenshot Alert</Text>
           </TouchableOpacity>
@@ -352,14 +369,9 @@ export default function Profile() {
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            {[
-              { icon: 'notifications-outline', label: 'Notifications', color: '#FF6B00' },
-              { icon: 'shield-outline', label: 'Privacy & Safety', color: '#4FC3F7' },
-              { icon: 'help-circle-outline', label: 'Help & Support', color: '#4ade80' },
-              { icon: 'information-circle-outline', label: 'About App', color: '#A78BFA' },
-              { icon: 'star-outline', label: 'Rate the App', color: '#FFD700' },
-            ].map((item, i) => (
-              <TouchableOpacity key={i} style={[styles.settingsItem, { borderBottomColor: colors.border }]} onPress={() => Alert.alert(item.label, 'Coming soon!')}>
+            {/* ✅ item.onPress fix — no longer hardcoded */}
+            {SETTINGS_ITEMS.map((item, i) => (
+              <TouchableOpacity key={i} style={[styles.settingsItem, { borderBottomColor: colors.border }]} onPress={item.onPress}>
                 <View style={[styles.settingsIconWrap, { backgroundColor: `${item.color}22` }]}>
                   <Ionicons name={item.icon as any} size={20} color={item.color} />
                 </View>
