@@ -108,7 +108,7 @@ export default function Profile() {
     { label: 'Add Bio', icon: 'document-text-outline', done: !!userBio, onPress: () => { setBioInput(userBio); setShowBioEdit(true); } },
     { label: 'Add Photo', icon: 'camera-outline', done: false, onPress: () => showAlert('Add Photo', 'Photo upload coming soon! 📸') },
     { label: 'Set Intent', icon: 'heart-outline', done: true, onPress: () => router.push('/auth/onboarding') },
-    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/(tabs)/VerificationScreen') },
+    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/(tabs)/VerifySelfie') },
   ];
 
   const SETTINGS_ITEMS = [

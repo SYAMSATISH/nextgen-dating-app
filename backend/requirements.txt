@@ -1,0 +1,5 @@
+flask
+deepface
+tf-keras
+retina-face
+opencv-python-headless

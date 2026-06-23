@@ -73,7 +73,7 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="VerificationScreen"
+          name="VerifySelfie"
           options={{ href: null }}
         />
       </Tabs>
