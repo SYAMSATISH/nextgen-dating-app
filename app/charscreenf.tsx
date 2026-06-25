@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, FlatList, Platform, ActivityIndicator, Animated,
+  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -13,6 +14,7 @@ import { Audio } from 'expo-av';
 
 const ICEBREAKER_API = 'https://bookish-guide-qvqjrpjxrvr7h4x9q-8080.app.github.dev/api/icebreakers';
 const SMART_REPLY_API = 'https://bookish-guide-qvqjrpjxrvr7h4x9q-8080.app.github.dev/api/smart-reply';
+const REPORT_API = 'https://expert-giggle-v94px5996qqhp7gx-8080.app.github.dev/api/report-user';
 
 type Message = {
   id: string;
@@ -29,6 +31,7 @@ export default function ChatScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
   const currentUid = auth.currentUser?.uid || 'current_user';
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -37,13 +40,10 @@ export default function ChatScreen() {
   const [smartReplies, setSmartReplies] = useState<string[]>([]);
   const [loadingIce, setLoadingIce] = useState(false);
   const [showIcebreakers, setShowIcebreakers] = useState(true);
-
-  // Voice recording
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<any>(null);
 
@@ -54,7 +54,6 @@ export default function ChatScreen() {
     if (Platform.OS !== 'web') loadMessages();
     return () => {
       if (Platform.OS !== 'web') off(ref(rtdb, `chats/${chatId}/messages`));
-      sound?.unloadAsync();
     };
   }, []);
 
@@ -127,17 +126,10 @@ export default function ChatScreen() {
     setShowIcebreakers(false);
     setSmartReplies([]);
     await loadSmartReplies(text);
-    setTimeout(() => flatListRef.current?.scrollToEnd(), 100);
-  };
-
-  // Voice recording functions
-  const startPulse = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.3, duration: 500, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-      ])
-    ).start();
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd();
+      inputRef.current?.focus();
+    }, 100);
   };
 
   const startRecording = async () => {
@@ -153,7 +145,12 @@ export default function ChatScreen() {
       setRecording(recording);
       setIsRecording(true);
       setRecordingDuration(0);
-      startPulse();
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.3, duration: 500, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ])
+      ).start();
       timerRef.current = setInterval(() => {
         setRecordingDuration(prev => {
           if (prev >= 60) { stopRecording(); return prev; }
@@ -189,16 +186,6 @@ export default function ChatScreen() {
     }
   };
 
-  const playVoiceMessage = async (messageId: string) => {
-    if (playingId === messageId) {
-      await sound?.stopAsync();
-      setPlayingId(null);
-      return;
-    }
-    setPlayingId(messageId);
-    setTimeout(() => setPlayingId(null), 3000);
-  };
-
   const renderMessage = ({ item }: { item: Message }) => {
     const isMe = item.senderId === currentUid;
 
@@ -207,26 +194,12 @@ export default function ChatScreen() {
         <View style={[styles.messageRow, isMe && styles.messageRowMe]}>
           <TouchableOpacity
             style={[styles.voiceBubble, isMe ? styles.voiceBubbleMe : [styles.voiceBubbleOther, { backgroundColor: colors.card }]]}
-            onPress={() => playVoiceMessage(item.id)}
+            onPress={() => setPlayingId(playingId === item.id ? null : item.id)}
           >
-            <Ionicons
-              name={playingId === item.id ? "pause" : "play"}
-              size={20}
-              color={isMe ? '#fff' : '#FF2D7A'}
-            />
-            <View style={[styles.voiceWave, { backgroundColor: isMe ? 'rgba(255,255,255,0.4)' : 'rgba(255,45,122,0.3)' }]}>
+            <Ionicons name={playingId === item.id ? "pause" : "play"} size={20} color={isMe ? '#fff' : '#FF2D7A'} />
+            <View style={[styles.voiceWave, { backgroundColor: isMe ? 'rgba(255,255,255,0.3)' : 'rgba(255,45,122,0.2)' }]}>
               {[...Array(12)].map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.waveBar,
-                    {
-                      height: Math.random() * 16 + 6,
-                      backgroundColor: isMe ? '#fff' : '#FF2D7A',
-                      opacity: playingId === item.id ? 1 : 0.6,
-                    }
-                  ]}
-                />
+                <View key={i} style={[styles.waveBar, { height: Math.random() * 16 + 6, backgroundColor: isMe ? '#fff' : '#FF2D7A' }]} />
               ))}
             </View>
             <Text style={[styles.voiceDuration, { color: isMe ? '#fff' : colors.subtext, fontFamily: FONTS.regular }]}>
@@ -248,77 +221,12 @@ export default function ChatScreen() {
     );
   };
 
-  const Footer = () => (
-    <View>
-      {showIcebreakers && (
-        <View style={[styles.icebreakerSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.icebreakerHeader}>
-            <View style={[styles.glossIconWrap, { backgroundColor: 'rgba(255,45,122,0.15)' }]}>
-              <Ionicons name="sparkles" size={14} color="#FF2D7A" />
-            </View>
-            <Text style={[styles.icebreakerTitle, { color: colors.text, fontFamily: FONTS.semibold }]}>AI Icebreakers</Text>
-            {loadingIce && <ActivityIndicator size="small" color="#FF2D7A" />}
-          </View>
-          {icebreakers.map((ice, i) => (
-            <TouchableOpacity key={i} style={[styles.icebreakerChip, { borderColor: colors.border, backgroundColor: isDark ? '#1a1a1a' : '#f5f5f5' }]} onPress={() => sendMessage(ice)}>
-              <Text style={[styles.icebreakerText, { color: colors.text, fontFamily: FONTS.regular }]}>{ice}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {smartReplies.length > 0 && (
-        <View style={[styles.smartReplySection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.smartReplyChips}>
-            {smartReplies.map((reply, i) => (
-              <TouchableOpacity key={i} style={[styles.smartReplyChip, { borderColor: '#FF2D7A', backgroundColor: 'rgba(255,45,122,0.1)' }]} onPress={() => sendMessage(reply)}>
-                <Text style={[styles.smartReplyText, { fontFamily: FONTS.medium }]}>{reply}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* Input Row with Voice */}
-      <View style={[styles.inputRow, { backgroundColor: '#1a1a1a', borderTopColor: colors.border, marginBottom: Platform.OS === 'web' ? 84 : 130 }]}>
-        {isRecording ? (
-          <View style={styles.recordingRow}>
-            <Animated.View style={[styles.recordingDot, { transform: [{ scale: pulseAnim }] }]} />
-            <Text style={[styles.recordingText, { fontFamily: FONTS.medium }]}>
-              Recording... {recordingDuration}s
-            </Text>
-            <TouchableOpacity style={styles.stopRecordBtn} onPress={stopRecording}>
-              <Ionicons name="stop" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            <TouchableOpacity style={styles.attachBtn} onPress={startRecording}>
-              <Ionicons name="mic" size={22} color="#FF2D7A" />
-            </TouchableOpacity>
-            <TextInput
-              style={[styles.input, { color: '#fff', fontFamily: FONTS.regular }]}
-              placeholder="Type a message..."
-              placeholderTextColor="#555"
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-            />
-            <TouchableOpacity
-              style={[styles.sendBtn, { backgroundColor: inputText.trim() ? '#FF2D7A' : '#2a2a2a' }]}
-              onPress={() => sendMessage(inputText)}
-              disabled={!inputText.trim()}
-            >
-              <Ionicons name="send" size={18} color="#fff" />
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-    </View>
-  );
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
@@ -338,15 +246,16 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Messages */}
       <FlatList
         ref={flatListRef}
         data={messages}
         renderItem={renderMessage}
         keyExtractor={item => item.id}
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, flexGrow: 1, paddingBottom: 8 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 20, flexGrow: 1 }}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-        ListFooterComponent={<Footer />}
+        keyboardShouldPersistTaps="always"
         ListEmptyComponent={
           <View style={styles.emptyChat}>
             <View style={[styles.emptyIconWrap, { backgroundColor: 'rgba(255,45,122,0.1)' }]}>
@@ -361,7 +270,84 @@ export default function ChatScreen() {
           </View>
         }
       />
-    </View>
+
+      {/* Icebreakers */}
+      {showIcebreakers && (
+        <View style={[styles.icebreakerSection, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+          <View style={styles.icebreakerHeader}>
+            <View style={[styles.glossIconWrap, { backgroundColor: 'rgba(255,45,122,0.15)' }]}>
+              <Ionicons name="sparkles" size={14} color="#FF2D7A" />
+            </View>
+            <Text style={[styles.icebreakerTitle, { color: colors.text, fontFamily: FONTS.semibold }]}>AI Icebreakers</Text>
+            {loadingIce && <ActivityIndicator size="small" color="#FF2D7A" />}
+          </View>
+          <View style={styles.icebreakerChips}>
+            {icebreakers.map((ice, i) => (
+              <TouchableOpacity key={i} style={[styles.icebreakerChip, { borderColor: colors.border, backgroundColor: isDark ? '#1a1a1a' : '#f5f5f5' }]} onPress={() => sendMessage(ice)}>
+                <Text style={[styles.icebreakerText, { color: colors.text, fontFamily: FONTS.regular }]}>{ice}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Smart Replies */}
+      {smartReplies.length > 0 && (
+        <View style={[styles.smartReplySection, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+          <View style={styles.smartReplyChips}>
+            {smartReplies.map((reply, i) => (
+              <TouchableOpacity key={i} style={[styles.smartReplyChip, { borderColor: '#FF2D7A', backgroundColor: 'rgba(255,45,122,0.1)' }]} onPress={() => sendMessage(reply)}>
+                <Text style={[styles.smartReplyText, { fontFamily: FONTS.medium }]}>{reply}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Input Row */}
+      <View style={[styles.inputRow, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+        {isRecording ? (
+          <View style={styles.recordingRow}>
+            <Animated.View style={[styles.recordingDot, { transform: [{ scale: pulseAnim }] }]} />
+            <Text style={[styles.recordingText, { fontFamily: FONTS.medium }]}>
+              Recording... {recordingDuration}s
+            </Text>
+            <TouchableOpacity style={styles.stopRecordBtn} onPress={stopRecording}>
+              <Ionicons name="stop" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[styles.micBtn, { backgroundColor: isDark ? '#2a2a2a' : '#f0f0f0' }]}
+              onPress={startRecording}
+            >
+              <Ionicons name="mic" size={20} color="#FF2D7A" />
+            </TouchableOpacity>
+            <TextInput
+              ref={inputRef}
+              style={[styles.input, { backgroundColor: isDark ? '#2a2a2a' : '#f0f0f0', color: colors.text, fontFamily: FONTS.regular }]}
+              placeholder="Type a message..."
+              placeholderTextColor={colors.subtext}
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              blurOnSubmit={false}
+              returnKeyType="send"
+              onSubmitEditing={() => sendMessage(inputText)}
+              onFocus={() => setTimeout(() => flatListRef.current?.scrollToEnd(), 300)}
+            />
+            <TouchableOpacity
+              style={[styles.sendBtn, { backgroundColor: inputText.trim() ? '#FF2D7A' : (isDark ? '#2a2a2a' : '#e0e0e0') }]}
+              onPress={() => sendMessage(inputText)}
+              disabled={!inputText.trim()}
+            >
+              <Ionicons name="send" size={18} color={inputText.trim() ? '#fff' : colors.subtext} />
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -375,6 +361,29 @@ const styles = StyleSheet.create({
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4ade80' },
   onlineText: { fontSize: 12 },
   callBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  emptyChat: { alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
+  emptyIconWrap: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  emptyText: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  emptySubText: { fontSize: 14, textAlign: 'center' },
+  icebreakerSection: { padding: 14, borderTopWidth: 1, gap: 10 },
+  icebreakerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  glossIconWrap: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  icebreakerTitle: { fontSize: 13, fontWeight: '600', flex: 1 },
+  icebreakerChips: { gap: 8 },
+  icebreakerChip: { borderRadius: 12, padding: 10, borderWidth: 1 },
+  icebreakerText: { fontSize: 13 },
+  smartReplySection: { paddingVertical: 10, paddingHorizontal: 14, borderTopWidth: 1 },
+  smartReplyChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  smartReplyChip: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1 },
+  smartReplyText: { fontSize: 12, color: '#FF2D7A' },
+  inputRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, gap: 8 },
+  micBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, borderRadius: 25, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, maxHeight: 100 },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  recordingRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  recordingDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#FF2D7A' },
+  recordingText: { flex: 1, color: '#FF2D7A', fontSize: 14 },
+  stopRecordBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FF2D7A', alignItems: 'center', justifyContent: 'center' },
   messageRow: { flexDirection: 'row', marginBottom: 8 },
   messageRowMe: { justifyContent: 'flex-end' },
   messageBubble: { maxWidth: '75%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
@@ -382,31 +391,9 @@ const styles = StyleSheet.create({
   bubbleOther: { borderBottomLeftRadius: 4 },
   messageText: { fontSize: 14, lineHeight: 20 },
   voiceBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, maxWidth: '75%' },
-  voiceBubbleMe: { backgroundColor: '#FF2D7A', borderBottomRightRadius: 4 },
+  voiceBubbleMe: { backgroundColor: '#FF2D7A' },
   voiceBubbleOther: { borderBottomLeftRadius: 4 },
   voiceWave: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8, height: 30 },
   waveBar: { width: 3, borderRadius: 2 },
   voiceDuration: { fontSize: 11 },
-  emptyChat: { alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
-  emptyIconWrap: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  emptyText: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  emptySubText: { fontSize: 14, textAlign: 'center' },
-  icebreakerSection: { padding: 14, borderWidth: 1, borderRadius: 12, margin: 8, gap: 8 },
-  icebreakerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  glossIconWrap: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  icebreakerTitle: { fontSize: 13, fontWeight: '600', flex: 1 },
-  icebreakerChip: { borderRadius: 12, padding: 10, borderWidth: 1, marginBottom: 6 },
-  icebreakerText: { fontSize: 13 },
-  smartReplySection: { paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderRadius: 12, margin: 8 },
-  smartReplyChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  smartReplyChip: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1 },
-  smartReplyText: { fontSize: 12, color: '#FF2D7A' },
-  inputRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, gap: 8, borderRadius: 12, margin: 8 },
-  attachBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#2a2a2a', alignItems: 'center', justifyContent: 'center' },
-  input: { flex: 1, borderRadius: 25, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, maxHeight: 100, backgroundColor: '#2a2a2a' },
-  sendBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  recordingRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  recordingDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#FF2D7A' },
-  recordingText: { flex: 1, color: '#FF2D7A', fontSize: 14 },
-  stopRecordBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FF2D7A', alignItems: 'center', justifyContent: 'center' },
 });

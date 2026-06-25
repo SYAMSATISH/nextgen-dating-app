@@ -13,16 +13,19 @@
       "bundleIdentifier": "com.nextgen.datingapp"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.nextgen.datingapp",
-      "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ]
-    },
+  "adaptiveIcon": {
+    "foregroundImage": "./assets/images/adaptive-icon.png",
+    "backgroundColor": "#ffffff"
+  },
+  "package": "com.nextgen.datingapp",
+  "softwareKeyboardLayoutMode": "pan",
+  "permissions": [
+    "android.permission.RECORD_AUDIO",
+    "android.permission.MODIFY_AUDIO_SETTINGS",
+    "android.permission.CAMERA",
+    "android.permission.READ_EXTERNAL_STORAGE"
+  ]
+},
     "web": {
       "bundler": "metro",
       "output": "static",
