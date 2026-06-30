@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform, Image } from "react-native";
 import React, { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import Avatar from "@/components/Avatar";
@@ -9,6 +9,8 @@ import { updatePrivacySettings } from "@/DB/userDB";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { useTheme } from "@/constants/ThemeContext";
 import { FONTS } from "@/constants/fonts";
+import * as ImagePicker from 'expo-image-picker';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const PLANS = [
   { plan: "Exclusive photo insights", p1: true, p2: true },
@@ -30,7 +32,6 @@ const ACHIEVEMENTS = [
   { id: 'social', icon: 'people', title: 'Social Butterfly', desc: 'Match with 5 people', unlocked: false, color: '#4FC3F7' },
 ];
 
-// ✅ Web + Mobile compatible alert
 const showAlert = (title: string, message: string) => {
   if (Platform.OS === 'web') {
     window.alert(`${title}\n\n${message}`);
@@ -48,9 +49,11 @@ export default function Profile() {
   const [streak, setStreak] = useState(0);
   const [userName, setUserName] = useState('Profile');
   const [userBio, setUserBio] = useState('');
+  const [userPhoto, setUserPhoto] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showBioEdit, setShowBioEdit] = useState(false);
   const [bioInput, setBioInput] = useState('');
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   useEffect(() => { loadUserData(); }, []);
 
@@ -62,6 +65,7 @@ export default function Profile() {
       const data = userSnap.data();
       setUserName(data.name || 'Profile');
       setUserBio(data.bio || '');
+      setUserPhoto(data.photo || '');
       setIncognito(data.incognito || false);
       setBlurPhoto(data.blurPhoto || false);
       setStreak(data.streak || 0);
@@ -103,12 +107,52 @@ export default function Profile() {
     showAlert('✅ Bio saved!', 'Your bio has been updated.');
   };
 
+  const handleAddPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      showAlert('Permission needed', 'Please allow photo access!');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (result.canceled) return;
+
+    try {
+      setPhotoUploading(true);
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+
+      const response = await fetch(result.assets[0].uri);
+      const blob = await response.blob();
+
+      const storage = getStorage();
+      const photoRef = storageRef(storage, `users/${uid}/profile.jpg`);
+      await uploadBytes(photoRef, blob);
+      const downloadURL = await getDownloadURL(photoRef);
+
+      await updateDoc(doc(db, 'users', uid), { photo: downloadURL });
+      setUserPhoto(downloadURL);
+      setPhotoUploading(false);
+      showAlert('✅ Photo saved!', 'Profile photo updated!');
+      loadUserData();
+    } catch (error) {
+      setPhotoUploading(false);
+      showAlert('Error', 'Photo upload failed, try again!');
+    }
+  };
+
   const PROGRESS_SECTIONS = [
     { label: 'Basic Information', icon: 'person-outline', done: !!userName, onPress: () => showAlert('Basic Info', 'Name: ' + userName) },
     { label: 'Add Bio', icon: 'document-text-outline', done: !!userBio, onPress: () => { setBioInput(userBio); setShowBioEdit(true); } },
-    { label: 'Add Photo', icon: 'camera-outline', done: false, onPress: () => showAlert('Add Photo', 'Photo upload coming soon! 📸') },
+    { label: 'Add Photo', icon: 'camera-outline', done: !!userPhoto, onPress: handleAddPhoto },
     { label: 'Set Intent', icon: 'heart-outline', done: true, onPress: () => router.push('/auth/onboarding') },
-    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/(tabs)/VerifySelfie') },
+    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/(tabs)/VerificationScreen') },
   ];
 
   const SETTINGS_ITEMS = [
@@ -141,7 +185,18 @@ export default function Profile() {
 
         {/* Avatar Row */}
         <View style={[styles.avatarRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Avatar size={72} image="https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=400" />
+          <TouchableOpacity onPress={handleAddPhoto}>
+            {userPhoto ? (
+              <Image source={{ uri: userPhoto }} style={styles.avatarImg} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                {photoUploading
+                  ? <Ionicons name="hourglass" size={28} color="#FF2D7A" />
+                  : <Ionicons name="camera" size={28} color="#FF2D7A" />
+                }
+              </View>
+            )}
+          </TouchableOpacity>
           <View style={{ flex: 1, gap: 6 }}>
             <Text style={[styles.userName, { color: colors.text, fontFamily: FONTS.bold }]}>{userName}</Text>
             <View style={styles.verifiedBadge}>
@@ -308,7 +363,7 @@ export default function Profile() {
               </View>
               <Text style={[styles.premiumTitle, { fontFamily: FONTS.bold }]}>{plan.title}</Text>
               <Text style={[styles.premiumSub, { fontFamily: FONTS.regular }]}>{plan.sub}</Text>
-              <TouchableOpacity style={styles.upgradeBtn}>
+              <TouchableOpacity style={styles.upgradeBtn} onPress={() => showAlert('Upgrade to ' + plan.title, 'Payment integration coming soon! 💎')}>
                 <Text style={[styles.upgradeText, { fontFamily: FONTS.bold }]}>Upgrade Now</Text>
               </TouchableOpacity>
             </View>
@@ -369,7 +424,6 @@ export default function Profile() {
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            {/* ✅ item.onPress fix — no longer hardcoded */}
             {SETTINGS_ITEMS.map((item, i) => (
               <TouchableOpacity key={i} style={[styles.settingsItem, { borderBottomColor: colors.border }]} onPress={item.onPress}>
                 <View style={[styles.settingsIconWrap, { backgroundColor: `${item.color}22` }]}>
@@ -398,6 +452,8 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', gap: 8 },
   iconBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 20, borderWidth: 1 },
+  avatarImg: { width: 72, height: 72, borderRadius: 36, borderWidth: 2, borderColor: '#FF2D7A' },
+  avatarPlaceholder: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,45,122,0.1)', borderWidth: 2, borderColor: '#FF2D7A', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   userName: { fontSize: 20, fontWeight: '700' },
   userBioText: { fontSize: 12 },
   verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },

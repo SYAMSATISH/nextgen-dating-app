@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, FlatList, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Alert
+  Platform, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -15,6 +15,14 @@ const BASE_URL = 'https://bookish-guide-qvqjrpjxrvr7h4x9q-8080.app.github.dev';
 const ICEBREAKER_API = `${BASE_URL}/api/icebreakers`;
 const SMART_REPLY_API = `${BASE_URL}/api/smart-reply`;
 const NUDGE_API = `${BASE_URL}/api/nudge-check`;
+
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 type Message = {
   id: string;
@@ -43,15 +51,14 @@ export default function ChatScreen() {
   const [loadingReply, setLoadingReply] = useState(false);
   const [showIcebreakers, setShowIcebreakers] = useState(true);
   const [nudgeMessage, setNudgeMessage] = useState('');
+  const [showVideoModal, setShowVideoModal] = useState(false);
 
   const chatId = [currentUid, DEMO_OTHER_USER.id].sort().join('_');
 
   useEffect(() => {
     loadIcebreakers();
     checkNudge();
-    if (Platform.OS !== 'web') {
-      loadMessages();
-    }
+    if (Platform.OS !== 'web') loadMessages();
     return () => {
       const chatRef = ref(rtdb, `chats/${chatId}/messages`);
       off(chatRef);
@@ -63,10 +70,7 @@ export default function ChatScreen() {
     onValue(chatRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const msgs = Object.entries(data).map(([id, val]: any) => ({
-          id,
-          ...val,
-        }));
+        const msgs = Object.entries(data).map(([id, val]: any) => ({ id, ...val }));
         msgs.sort((a, b) => a.timestamp - b.timestamp);
         setMessages(msgs);
         if (msgs.length > 0) setShowIcebreakers(false);
@@ -105,14 +109,12 @@ export default function ChatScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chatId: chatId,
+          chatId,
           lastMessageTime: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
         }),
       });
       const data = await response.json();
-      if (data.shouldNudge) {
-        setNudgeMessage(data.message);
-      }
+      if (data.shouldNudge) setNudgeMessage(data.message);
     } catch (error) {
       console.error('Nudge error:', error);
     }
@@ -124,19 +126,12 @@ export default function ChatScreen() {
       const response = await fetch(SMART_REPLY_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatHistory: messages.map(m => m.text),
-          lastMessage,
-        }),
+        body: JSON.stringify({ chatHistory: messages.map(m => m.text), lastMessage }),
       });
       const data = await response.json();
       setSmartReplies(data.replies || []);
     } catch (error) {
-      setSmartReplies([
-        "That sounds amazing! 😊",
-        "Tell me more about that!",
-        "Haha that's so cool 😄",
-      ]);
+      setSmartReplies(["That sounds amazing! 😊", "Tell me more about that!", "Haha that's so cool 😄"]);
     }
     setLoadingReply(false);
   };
@@ -162,14 +157,8 @@ export default function ChatScreen() {
     const isMe = item.senderId === currentUid;
     return (
       <View style={[styles.messageRow, isMe && styles.messageRowMe]}>
-        <View style={[
-          styles.messageBubble,
-          isMe ? styles.bubbleMe : [styles.bubbleOther, { backgroundColor: colors.card }]
-        ]}>
-          <Text style={[
-            styles.messageText,
-            isMe ? { color: '#fff' } : { color: colors.text }
-          ]}>
+        <View style={[styles.messageBubble, isMe ? styles.bubbleMe : [styles.bubbleOther, { backgroundColor: colors.card }]]}>
+          <Text style={[styles.messageText, isMe ? { color: '#fff' } : { color: colors.text }]}>
             {item.text}
           </Text>
         </View>
@@ -189,19 +178,26 @@ export default function ChatScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={[styles.headerName, { color: colors.text }]}>
+          <Text style={[styles.headerName, { color: colors.text, fontFamily: FONTS.bold }]}>
             {DEMO_OTHER_USER.name}
           </Text>
           <View style={styles.onlineRow}>
             <View style={styles.onlineDot} />
-            <Text style={[styles.onlineText, { color: colors.subtext }]}>Online</Text>
+            <Text style={[styles.onlineText, { color: colors.subtext, fontFamily: FONTS.regular }]}>Online</Text>
           </View>
         </View>
+        {/* ✅ Video Call button — opens modal */}
         <TouchableOpacity
           style={[styles.callBtn, { backgroundColor: 'rgba(255,45,122,0.15)' }]}
-          onPress={() => alert('📹 Video Call with ' + DEMO_OTHER_USER.name + ' — Coming Soon! 🚀')}
+          onPress={() => setShowVideoModal(true)}
         >
           <Ionicons name="videocam-outline" size={22} color="#FF2D7A" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.callBtn, { backgroundColor: 'rgba(255,45,122,0.15)' }]}
+          onPress={() => router.push('/feedback')}
+        >
+          <Ionicons name="star-outline" size={20} color="#FF2D7A" />
         </TouchableOpacity>
       </View>
 
@@ -223,15 +219,16 @@ export default function ChatScreen() {
         keyExtractor={item => item.id}
         contentContainerStyle={styles.messagesList}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <View style={styles.emptyChat}>
             <View style={[styles.emptyIconWrap, { backgroundColor: 'rgba(255,45,122,0.1)' }]}>
               <Ionicons name="heart" size={36} color="#FF2D7A" />
             </View>
-            <Text style={[styles.emptyText, { color: colors.text }]}>
+            <Text style={[styles.emptyText, { color: colors.text, fontFamily: FONTS.bold }]}>
               You matched with {DEMO_OTHER_USER.name}!
             </Text>
-            <Text style={[styles.emptySubText, { color: colors.subtext }]}>
+            <Text style={[styles.emptySubText, { color: colors.subtext, fontFamily: FONTS.regular }]}>
               Start the conversation below 👇
             </Text>
           </View>
@@ -245,9 +242,7 @@ export default function ChatScreen() {
             <View style={[styles.glossIconWrap, { backgroundColor: 'rgba(255,45,122,0.15)' }]}>
               <Ionicons name="sparkles" size={14} color="#FF2D7A" />
             </View>
-            <Text style={[styles.icebreakerTitle, { color: colors.text }]}>
-              AI Icebreakers
-            </Text>
+            <Text style={[styles.icebreakerTitle, { color: colors.text, fontFamily: FONTS.semibold }]}>AI Icebreakers</Text>
             {loadingIce && <ActivityIndicator size="small" color="#FF2D7A" />}
           </View>
           <View style={styles.icebreakerChips}>
@@ -257,9 +252,7 @@ export default function ChatScreen() {
                 style={[styles.icebreakerChip, { borderColor: colors.border, backgroundColor: isDark ? '#1a1a1a' : '#f5f5f5' }]}
                 onPress={() => sendMessage(ice)}
               >
-                <Text style={[styles.icebreakerText, { color: colors.text }]}>
-                  {ice}
-                </Text>
+                <Text style={[styles.icebreakerText, { color: colors.text, fontFamily: FONTS.regular }]}>{ice}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -279,7 +272,7 @@ export default function ChatScreen() {
                   style={[styles.smartReplyChip, { borderColor: '#FF2D7A', backgroundColor: 'rgba(255,45,122,0.1)' }]}
                   onPress={() => sendMessage(reply)}
                 >
-                  <Text style={styles.smartReplyText}>{reply}</Text>
+                  <Text style={[styles.smartReplyText, { fontFamily: FONTS.medium }]}>{reply}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -293,7 +286,7 @@ export default function ChatScreen() {
           <Ionicons name="add" size={22} color={colors.subtext} />
         </TouchableOpacity>
         <TextInput
-          style={[styles.input, { backgroundColor: isDark ? '#2a2a2a' : '#f0f0f0', color: colors.text }]}
+          style={[styles.input, { backgroundColor: isDark ? '#2a2a2a' : '#f0f0f0', color: colors.text, fontFamily: FONTS.regular }]}
           placeholder="Type a message..."
           placeholderTextColor={colors.subtext}
           value={inputText}
@@ -308,6 +301,47 @@ export default function ChatScreen() {
           <Ionicons name="send" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
+
+      {/* ✅ Video Call Modal */}
+      <Modal visible={showVideoModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text, fontFamily: FONTS.bold }]}>
+                📹 Video Call
+              </Text>
+              <TouchableOpacity onPress={() => setShowVideoModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.videoModalContent}>
+              <View style={[styles.videoIconWrap, { backgroundColor: 'rgba(255,45,122,0.1)' }]}>
+                <Ionicons name="videocam" size={48} color="#FF2D7A" />
+              </View>
+              <Text style={[styles.videoTitle, { color: colors.text, fontFamily: FONTS.bold }]}>
+                Call {DEMO_OTHER_USER.name}?
+              </Text>
+              <Text style={[styles.videoSub, { color: colors.subtext, fontFamily: FONTS.regular }]}>
+                Video calling feature is coming soon! 🚀{'\n'}Stay tuned for updates.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.videoBtn}
+              onPress={() => setShowVideoModal(false)}
+            >
+              <Ionicons name="videocam" size={20} color="#fff" />
+              <Text style={[styles.videoBtnText, { fontFamily: FONTS.bold }]}>Notify Me When Ready</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setShowVideoModal(false)}>
+              <Text style={[styles.cancelText, { color: colors.subtext, fontFamily: FONTS.regular }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }
@@ -350,4 +384,15 @@ const styles = StyleSheet.create({
   attachBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, maxHeight: 100 },
   sendBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 16, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: '700' },
+  videoModalContent: { alignItems: 'center', gap: 12, paddingVertical: 16 },
+  videoIconWrap: { width: 90, height: 90, borderRadius: 45, alignItems: 'center', justifyContent: 'center' },
+  videoTitle: { fontSize: 20, fontWeight: '700' },
+  videoSub: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
+  videoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FF2D7A', paddingVertical: 16, borderRadius: 16 },
+  videoBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  cancelText: { textAlign: 'center', fontSize: 14, marginTop: 4 },
 });

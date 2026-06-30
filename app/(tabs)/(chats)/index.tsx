@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from "react-native";
+import { ScrollView, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, TextInput, Modal, Platform, Alert } from "react-native";
 import React, { useState, useCallback } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import Avatar from "@/components/Avatar";
@@ -7,6 +7,14 @@ import { auth, db } from "@/constants/appwrite";
 import { doc, getDoc } from "firebase/firestore";
 import { useTheme } from "@/constants/ThemeContext";
 import { FONTS } from "@/constants/fonts";
+
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 type ChatItem = {
   id: string;
@@ -24,6 +32,10 @@ export default function Chats() {
   const { colors, isDark } = useTheme();
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
 
   useFocusEffect(
     useCallback(() => {
@@ -93,103 +105,197 @@ export default function Chats() {
     return 'timer-outline';
   };
 
+  // ✅ Filter + Search logic
+  const filteredChats = chats.filter(chat => {
+    const matchesSearch = chat.otherUserName.toLowerCase().includes(searchQuery.toLowerCase());
+    if (activeFilter === 'ghosting') return matchesSearch && chat.ghostingWarning;
+    if (activeFilter === 'streak') return matchesSearch && chat.streak > 0;
+    return matchesSearch;
+  });
+
+  const FILTERS = [
+    { id: 'all', label: 'All Chats', icon: 'chatbubbles-outline' },
+    { id: 'ghosting', label: 'Needs Reply', icon: 'warning-outline' },
+    { id: 'streak', label: 'On Streak 🔥', icon: 'flame-outline' },
+  ];
+
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background, flex: 1 }}
-      contentContainerStyle={{ paddingBottom: 120 }}
-    >
-      <View style={{ paddingHorizontal: 20, gap: 16 }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
+        <View style={{ paddingHorizontal: 20, gap: 16 }}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.headerSub, { color: colors.subtext, fontFamily: FONTS.medium }]}>MESSAGES</Text>
-            <Text style={[styles.headerTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Chats</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Ionicons name="search" size={20} color={colors.text} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Ionicons name="filter" size={20} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Loading */}
-        {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#FF2D7A" />
-            <Text style={[styles.loadingText, { color: colors.subtext, fontFamily: FONTS.regular }]}>Loading chats...</Text>
-          </View>
-        ) : chats.length === 0 ? (
-          /* Empty state */
-          <View style={styles.centered}>
-            <View style={[styles.emptyIconWrap, { backgroundColor: 'rgba(255,45,122,0.1)' }]}>
-              <Ionicons name="chatbubble-ellipses-outline" size={48} color="#FF2D7A" />
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={[styles.headerSub, { color: colors.subtext, fontFamily: FONTS.medium }]}>MESSAGES</Text>
+              <Text style={[styles.headerTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Chats</Text>
             </View>
-            <Text style={[styles.emptyText, { color: colors.text, fontFamily: FONTS.bold }]}>No matches yet!</Text>
-            <Text style={[styles.emptySubText, { color: colors.subtext, fontFamily: FONTS.regular }]}>Swipe right to match with someone</Text>
-            <TouchableOpacity style={styles.swipeBtn} onPress={() => router.push('/(tabs)/people')}>
-              <Ionicons name="heart" size={16} color="#fff" />
-              <Text style={[styles.swipeBtnText, { fontFamily: FONTS.semibold }]}>Start Swiping</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          /* Chat list */
-          <View style={{ gap: 10 }}>
-            {chats.map((chat) => (
+            <View style={styles.headerRight}>
+              {/* ✅ Search button */}
               <TouchableOpacity
-                key={chat.id}
-                style={[
-                  styles.chatItem,
-                  { backgroundColor: colors.card, borderColor: chat.ghostingWarning ? '#FF5722' : colors.border }
-                ]}
-                onPress={() => router.push('/charscreenf')}
+                style={[styles.iconBtn, { backgroundColor: showSearch ? '#FF2D7A' : colors.card, borderColor: showSearch ? '#FF2D7A' : colors.border }]}
+                onPress={() => { setShowSearch(!showSearch); setSearchQuery(''); }}
               >
-                {/* Avatar */}
-                <View style={styles.avatarContainer}>
-                  <Avatar size={54} image={chat.otherUserImage} />
-                  {chat.streak > 0 && (
-                    <View style={styles.streakBadge}>
-                      <Ionicons name="flame" size={10} color="#FF6B00" />
-                      <Text style={[styles.streakText, { fontFamily: FONTS.bold }]}>{chat.streak}</Text>
-                    </View>
-                  )}
-                </View>
+                <Ionicons name="search" size={20} color={showSearch ? '#fff' : colors.text} />
+              </TouchableOpacity>
+              {/* ✅ Filter button */}
+              <TouchableOpacity
+                style={[styles.iconBtn, { backgroundColor: activeFilter !== 'all' ? '#FF2D7A' : colors.card, borderColor: activeFilter !== 'all' ? '#FF2D7A' : colors.border }]}
+                onPress={() => setShowFilter(true)}
+              >
+                <Ionicons name="filter" size={20} color={activeFilter !== 'all' ? '#fff' : colors.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
 
-                {/* Chat info */}
-                <View style={styles.chatInfo}>
-                  <View style={styles.chatHeader}>
-                    <Text style={[styles.chatName, { color: colors.text, fontFamily: FONTS.semibold }]}>
-                      {chat.otherUserName}
-                    </Text>
-                    <View style={styles.timerRow}>
-                      <Ionicons name={getTimerIcon(chat) as any} size={12} color={getTimerColor(chat)} />
-                      <Text style={[styles.timerText, { color: getTimerColor(chat), fontFamily: FONTS.medium }]}>
-                        {getTimerText(chat.lastMessageAt)}
-                      </Text>
-                    </View>
+          {/* ✅ Search Bar */}
+          {showSearch && (
+            <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="search" size={16} color={colors.subtext} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text, fontFamily: FONTS.regular }]}
+                placeholder="Search chats..."
+                placeholderTextColor={colors.subtext}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={16} color={colors.subtext} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* ✅ Active filter badge */}
+          {activeFilter !== 'all' && (
+            <TouchableOpacity
+              style={styles.activeFilterBadge}
+              onPress={() => setActiveFilter('all')}
+            >
+              <Text style={[styles.activeFilterText, { fontFamily: FONTS.medium }]}>
+                {FILTERS.find(f => f.id === activeFilter)?.label} ✕
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Loading */}
+          {loading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color="#FF2D7A" />
+              <Text style={[styles.loadingText, { color: colors.subtext, fontFamily: FONTS.regular }]}>Loading chats...</Text>
+            </View>
+          ) : filteredChats.length === 0 ? (
+            <View style={styles.centered}>
+              <View style={[styles.emptyIconWrap, { backgroundColor: 'rgba(255,45,122,0.1)' }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={48} color="#FF2D7A" />
+              </View>
+              <Text style={[styles.emptyText, { color: colors.text, fontFamily: FONTS.bold }]}>
+                {searchQuery ? 'No results found!' : 'No matches yet!'}
+              </Text>
+              <Text style={[styles.emptySubText, { color: colors.subtext, fontFamily: FONTS.regular }]}>
+                {searchQuery ? 'Try a different name' : 'Swipe right to match with someone'}
+              </Text>
+              {!searchQuery && (
+                <TouchableOpacity style={styles.swipeBtn} onPress={() => router.push('/(tabs)/people')}>
+                  <Ionicons name="heart" size={16} color="#fff" />
+                  <Text style={[styles.swipeBtnText, { fontFamily: FONTS.semibold }]}>Start Swiping</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              {filteredChats.map((chat) => (
+                <TouchableOpacity
+                  key={chat.id}
+                  style={[
+                    styles.chatItem,
+                    { backgroundColor: colors.card, borderColor: chat.ghostingWarning ? '#FF5722' : colors.border }
+                  ]}
+                  onPress={() => router.push('/charscreenf')}
+                >
+                  <View style={styles.avatarContainer}>
+                    <Avatar size={54} image={chat.otherUserImage} />
+                    {chat.streak > 0 && (
+                      <View style={styles.streakBadge}>
+                        <Ionicons name="flame" size={10} color="#FF6B00" />
+                        <Text style={[styles.streakText, { fontFamily: FONTS.bold }]}>{chat.streak}</Text>
+                      </View>
+                    )}
                   </View>
-                  <Text style={[styles.lastMessage, { color: colors.subtext, fontFamily: FONTS.regular }]} numberOfLines={1}>
-                    {chat.lastMessage}
-                  </Text>
-                  {chat.ghostingWarning && (
-                    <View style={styles.ghostingRow}>
-                      <Ionicons name="alert-circle" size={12} color="#FF5722" />
-                      <Text style={[styles.ghostingText, { fontFamily: FONTS.medium }]}>Don't ghost! Reply to keep your streak</Text>
-                    </View>
-                  )}
-                </View>
 
-                {/* Arrow */}
-                <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+                  <View style={styles.chatInfo}>
+                    <View style={styles.chatHeader}>
+                      <Text style={[styles.chatName, { color: colors.text, fontFamily: FONTS.semibold }]}>
+                        {chat.otherUserName}
+                      </Text>
+                      <View style={styles.timerRow}>
+                        <Ionicons name={getTimerIcon(chat) as any} size={12} color={getTimerColor(chat)} />
+                        <Text style={[styles.timerText, { color: getTimerColor(chat), fontFamily: FONTS.medium }]}>
+                          {getTimerText(chat.lastMessageAt)}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.lastMessage, { color: colors.subtext, fontFamily: FONTS.regular }]} numberOfLines={1}>
+                      {chat.lastMessage}
+                    </Text>
+                    {chat.ghostingWarning && (
+                      <View style={styles.ghostingRow}>
+                        <Ionicons name="alert-circle" size={12} color="#FF5722" />
+                        <Text style={[styles.ghostingText, { fontFamily: FONTS.medium }]}>Don't ghost! Reply to keep your streak</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <Ionicons name="chevron-forward" size={18} color={colors.subtext} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* ✅ Filter Modal */}
+      <Modal visible={showFilter} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Filter Chats</Text>
+              <TouchableOpacity onPress={() => setShowFilter(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            {FILTERS.map((filter) => (
+              <TouchableOpacity
+                key={filter.id}
+                style={[
+                  styles.filterItem,
+                  { borderColor: activeFilter === filter.id ? '#FF2D7A' : colors.border },
+                  activeFilter === filter.id && { backgroundColor: 'rgba(255,45,122,0.1)' }
+                ]}
+                onPress={() => { setActiveFilter(filter.id); setShowFilter(false); }}
+              >
+                <Ionicons
+                  name={filter.icon as any}
+                  size={20}
+                  color={activeFilter === filter.id ? '#FF2D7A' : colors.subtext}
+                />
+                <Text style={[styles.filterText, { color: activeFilter === filter.id ? '#FF2D7A' : colors.text, fontFamily: FONTS.medium }]}>
+                  {filter.label}
+                </Text>
+                {activeFilter === filter.id && (
+                  <Ionicons name="checkmark-circle" size={20} color="#FF2D7A" />
+                )}
               </TouchableOpacity>
             ))}
           </View>
-        )}
-      </View>
-    </ScrollView>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -199,6 +305,10 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 26, fontWeight: '700', marginTop: 2 },
   headerRight: { flexDirection: 'row', gap: 8 },
   iconBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1 },
+  searchInput: { flex: 1, fontSize: 14 },
+  activeFilterBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,45,122,0.1)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1, borderColor: '#FF2D7A' },
+  activeFilterText: { color: '#FF2D7A', fontSize: 13 },
   centered: { alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
   loadingText: { fontSize: 14, marginTop: 8 },
   emptyIconWrap: { width: 90, height: 90, borderRadius: 45, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
@@ -218,4 +328,10 @@ const styles = StyleSheet.create({
   lastMessage: { fontSize: 13 },
   ghostingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   ghostingText: { fontSize: 11, color: '#FF5722' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 14, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: '700' },
+  filterItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  filterText: { flex: 1, fontSize: 15 },
 });
