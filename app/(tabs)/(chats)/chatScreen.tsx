@@ -11,7 +11,7 @@ import { ref, push, onValue, off } from 'firebase/database';
 import { useTheme } from '@/constants/ThemeContext';
 import { FONTS } from '@/constants/fonts';
 
-const BASE_URL = 'https://bookish-guide-qvqjrpjxrvr7h4x9q-8080.app.github.dev';
+const BASE_URL = 'https://sanded-livable-salary.ngrok-free.dev';
 const ICEBREAKER_API = `${BASE_URL}/api/icebreakers`;
 const SMART_REPLY_API = `${BASE_URL}/api/smart-reply`;
 const NUDGE_API = `${BASE_URL}/api/nudge-check`;

@@ -1,16 +1,47 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from "@react-navigation/native";
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from "@expo-google-fonts/poppins";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "react-native-reanimated";
 import { ThemeProvider, useTheme } from "@/constants/ThemeContext";
+import { auth } from "@/constants/appwrite";
+import { onAuthStateChanged } from "firebase/auth";
 
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
   const { isDark } = useTheme();
+  const router = useRouter();
+  const segments = useSegments();
+  const [user, setUser] = useState<any>(undefined);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (user === undefined) return; // still loading
+
+    const inAuthGroup = segments[0] === 'auth';
+
+    if (user) {
+      // Logged in — profile page ki
+      if (inAuthGroup) {
+        router.replace('/(tabs)/profile');
+      }
+    } else {
+      // Not logged in — signin ki
+      if (!inAuthGroup) {
+        router.replace('/auth/signin');
+      }
+    }
+  }, [user, segments]);
+
   return (
     <NavThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
       <Stack>
@@ -18,9 +49,9 @@ function RootLayoutNav() {
         <Stack.Screen name="auth/signin" options={{ headerShown: false }} />
         <Stack.Screen name="auth/signup" options={{ headerShown: false }} />
         <Stack.Screen name="auth/onboarding" options={{ headerShown: false }} />
-        <Stack.Screen name="charscreenf" options={{ headerShown: true }} />
+        <Stack.Screen name="charscreenf" options={{ headerShown: false }} />
         <Stack.Screen name="storyprofile" options={{ headerShown: false }} />
-        {/* <Stack.Screen name="feedback" options={{ headerShown: false }} /> */}
+        <Stack.Screen name="feedback" options={{ headerShown: false }} />
         <Stack.Screen name="videodating" options={{ headerShown: false }} />
         <Stack.Screen name="datediary" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />

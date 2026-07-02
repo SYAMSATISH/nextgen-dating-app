@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   TextInput, FlatList, Platform, ActivityIndicator, Animated,
-  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
+  KeyboardAvoidingView, Modal, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -11,10 +11,23 @@ import { ref, push, onValue, off } from 'firebase/database';
 import { useTheme } from '@/constants/ThemeContext';
 import { FONTS } from '@/constants/fonts';
 import { Audio } from 'expo-av';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '@/constants/appwrite';
 
-const ICEBREAKER_API = 'https://bookish-guide-qvqjrpjxrvr7h4x9q-8080.app.github.dev/api/icebreakers';
-const SMART_REPLY_API = 'https://bookish-guide-qvqjrpjxrvr7h4x9q-8080.app.github.dev/api/smart-reply';
-const REPORT_API = 'https://expert-giggle-v94px5996qqhp7gx-8080.app.github.dev/api/report-user';
+const BASE_URL = 'https://sanded-livable-salary.ngrok-free.dev';
+const ICEBREAKER_API = `${BASE_URL}/api/icebreakers`;
+const SMART_REPLY_API = `${BASE_URL}/api/smart-reply`;
+const REPORT_API = `${BASE_URL}/api/report-user`;
+
+const REPORT_REASONS = ['Spam', 'Fake Profile', 'Harassment', 'Other'];
+
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 type Message = {
   id: string;
@@ -46,6 +59,17 @@ export default function ChatScreen() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<any>(null);
+
+  // ✅ Report state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedReason, setSelectedReason] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportDone, setReportDone] = useState(false);
+
+  // ✅ Feedback modal state
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackText, setFeedbackText] = useState('');
 
   const chatId = [currentUid, DEMO_OTHER_USER.id].sort().join('_');
 
@@ -132,10 +156,77 @@ export default function ChatScreen() {
     }, 100);
   };
 
+  // ✅ Report submit
+  const submitReport = async () => {
+    if (!selectedReason) return;
+    setReportSubmitting(true);
+    try {
+      const res = await fetch(REPORT_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reporterId: currentUid,
+          reportedUserId: DEMO_OTHER_USER.id,
+          reason: selectedReason,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReportDone(true);
+        setTimeout(() => {
+          setShowReportModal(false);
+          setReportDone(false);
+          setSelectedReason('');
+        }, 2000);
+      } else {
+        throw new Error('Failed');
+      }
+    } catch {
+      // Firebase fallback
+      await addDoc(collection(db, 'reports'), {
+        reportedUserId: DEMO_OTHER_USER.id,
+        reportedBy: currentUid,
+        reason: selectedReason,
+        timestamp: new Date(),
+        status: 'pending',
+      });
+      setReportDone(true);
+      setTimeout(() => {
+        setShowReportModal(false);
+        setReportDone(false);
+        setSelectedReason('');
+      }, 2000);
+    }
+    setReportSubmitting(false);
+  };
+
+  // ✅ Feedback submit
+  const submitFeedback = async () => {
+    if (feedbackRating === 0) {
+      showAlert('Rating required', 'Please select a star rating!');
+      return;
+    }
+    try {
+      await addDoc(collection(db, 'feedback'), {
+        fromUserId: currentUid,
+        toUserId: DEMO_OTHER_USER.id,
+        rating: feedbackRating,
+        comment: feedbackText,
+        timestamp: new Date(),
+      });
+      setShowFeedbackModal(false);
+      setFeedbackRating(0);
+      setFeedbackText('');
+      showAlert('✅ Feedback sent!', 'Thank you for your feedback!');
+    } catch {
+      showAlert('Error', 'Could not submit feedback. Try again!');
+    }
+  };
+
   const startRecording = async () => {
     try {
       if (Platform.OS === 'web') {
-        alert('Voice messages work on mobile only!');
+        showAlert('Voice messages', 'Voice messages work on mobile only!');
         return;
       }
       const { status } = await Audio.requestPermissionsAsync();
@@ -188,7 +279,6 @@ export default function ChatScreen() {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isMe = item.senderId === currentUid;
-
     if (item.type === 'voice') {
       return (
         <View style={[styles.messageRow, isMe && styles.messageRowMe]}>
@@ -209,7 +299,6 @@ export default function ChatScreen() {
         </View>
       );
     }
-
     return (
       <View style={[styles.messageRow, isMe && styles.messageRowMe]}>
         <View style={[styles.messageBubble, isMe ? styles.bubbleMe : [styles.bubbleOther, { backgroundColor: colors.card }]]}>
@@ -238,11 +327,20 @@ export default function ChatScreen() {
             <Text style={[styles.onlineText, { color: colors.subtext, fontFamily: FONTS.regular }]}>Online</Text>
           </View>
         </View>
-        <TouchableOpacity style={[styles.callBtn, { backgroundColor: 'rgba(255,45,122,0.15)' }]}>
+        {/* Video Call */}
+        <TouchableOpacity style={[styles.callBtn, { backgroundColor: 'rgba(255,45,122,0.15)' }]}
+          onPress={() => showAlert('📹 Video Call', 'Video calling coming soon! 🚀')}>
           <Ionicons name="videocam-outline" size={22} color="#FF2D7A" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.callBtn, { backgroundColor: 'rgba(255,45,122,0.15)' }]} onPress={() => router.push('/feedback')}>
+        {/* ✅ Star = Feedback */}
+        <TouchableOpacity style={[styles.callBtn, { backgroundColor: 'rgba(255,45,122,0.15)' }]}
+          onPress={() => setShowFeedbackModal(true)}>
           <Ionicons name="star-outline" size={20} color="#FF2D7A" />
+        </TouchableOpacity>
+        {/* ✅ Flag = Report */}
+        <TouchableOpacity style={[styles.callBtn, { backgroundColor: 'rgba(255,45,122,0.15)' }]}
+          onPress={() => setShowReportModal(true)}>
+          <Ionicons name="flag-outline" size={20} color="#FF2D7A" />
         </TouchableOpacity>
       </View>
 
@@ -347,20 +445,116 @@ export default function ChatScreen() {
           </>
         )}
       </View>
+
+      {/* ✅ Report Modal */}
+      <Modal visible={showReportModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            {reportDone ? (
+              <View style={styles.reportSuccess}>
+                <Ionicons name="checkmark-circle" size={60} color="#4ade80" />
+                <Text style={[styles.reportSuccessText, { color: colors.text, fontFamily: FONTS.bold }]}>Report Submitted! ✅</Text>
+                <Text style={[{ color: colors.subtext, fontFamily: FONTS.regular, textAlign: 'center' }]}>We'll review this report soon.</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: colors.text, fontFamily: FONTS.bold }]}>🚩 Report User</Text>
+                  <TouchableOpacity onPress={() => { setShowReportModal(false); setSelectedReason(''); }}>
+                    <Ionicons name="close" size={24} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={[{ color: colors.subtext, fontFamily: FONTS.regular, marginBottom: 8 }]}>
+                  Select a reason for reporting {DEMO_OTHER_USER.name}:
+                </Text>
+                {REPORT_REASONS.map((reason) => (
+                  <TouchableOpacity
+                    key={reason}
+                    style={[styles.reasonBtn, { borderColor: selectedReason === reason ? '#FF2D7A' : colors.border },
+                      selectedReason === reason && { backgroundColor: 'rgba(255,45,122,0.1)' }]}
+                    onPress={() => setSelectedReason(reason)}
+                  >
+                    <Ionicons name={selectedReason === reason ? "radio-button-on" : "radio-button-off"} size={20}
+                      color={selectedReason === reason ? '#FF2D7A' : colors.subtext} />
+                    <Text style={[styles.reasonText, { color: selectedReason === reason ? '#FF2D7A' : colors.text, fontFamily: FONTS.medium }]}>
+                      {reason}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={[styles.submitBtn, { opacity: selectedReason ? 1 : 0.4 }]}
+                  onPress={submitReport}
+                  disabled={!selectedReason || reportSubmitting}
+                >
+                  {reportSubmitting
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={[styles.submitBtnText, { fontFamily: FONTS.bold }]}>Submit Report</Text>
+                  }
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setShowReportModal(false); setSelectedReason(''); }}>
+                  <Text style={[{ color: colors.subtext, fontFamily: FONTS.regular, textAlign: 'center', marginTop: 8 }]}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ✅ Feedback Modal */}
+      <Modal visible={showFeedbackModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text, fontFamily: FONTS.bold }]}>⭐ Rate Your Date</Text>
+              <TouchableOpacity onPress={() => setShowFeedbackModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[{ color: colors.subtext, fontFamily: FONTS.regular, marginBottom: 12 }]}>
+              How was your conversation with {DEMO_OTHER_USER.name}?
+            </Text>
+            {/* Star Rating */}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 16 }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity key={star} onPress={() => setFeedbackRating(star)}>
+                  <Ionicons name={feedbackRating >= star ? "star" : "star-outline"} size={36}
+                    color={feedbackRating >= star ? '#FFD700' : colors.subtext} />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={[styles.feedbackInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text, fontFamily: FONTS.regular }]}
+              placeholder="Share your experience... (optional)"
+              placeholderTextColor={colors.subtext}
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+              multiline
+              numberOfLines={3}
+            />
+            <TouchableOpacity style={styles.submitBtn} onPress={submitFeedback}>
+              <Text style={[styles.submitBtnText, { fontFamily: FONTS.bold }]}>Submit Feedback ⭐</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowFeedbackModal(false)}>
+              <Text style={[{ color: colors.subtext, fontFamily: FONTS.regular, textAlign: 'center', marginTop: 8 }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, paddingTop: 52, borderBottomWidth: 1, gap: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, paddingTop: 52, borderBottomWidth: 1, gap: 8 },
   backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   headerInfo: { flex: 1 },
   headerName: { fontSize: 16, fontWeight: '700' },
   onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4ade80' },
   onlineText: { fontSize: 12 },
-  callBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  callBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   emptyChat: { alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
   emptyIconWrap: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   emptyText: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
@@ -396,4 +590,15 @@ const styles = StyleSheet.create({
   voiceWave: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8, height: 30 },
   waveBar: { width: 3, borderRadius: 2 },
   voiceDuration: { fontSize: 11 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 14, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: '700' },
+  reasonBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  reasonText: { fontSize: 15 },
+  submitBtn: { backgroundColor: '#FF2D7A', paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginTop: 4 },
+  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  reportSuccess: { alignItems: 'center', gap: 12, paddingVertical: 20 },
+  reportSuccessText: { fontSize: 20, fontWeight: '700' },
+  feedbackInput: { borderRadius: 14, borderWidth: 1, padding: 14, fontSize: 14, minHeight: 80, textAlignVertical: 'top' },
 });

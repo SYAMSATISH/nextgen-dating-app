@@ -1,11 +1,9 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform, Image } from "react-native";
 import React, { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import Avatar from "@/components/Avatar";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
 import { auth, db } from "@/constants/appwrite";
-import { updatePrivacySettings } from "@/DB/userDB";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { useTheme } from "@/constants/ThemeContext";
 import { FONTS } from "@/constants/fonts";
@@ -87,14 +85,14 @@ export default function Profile() {
   const handleIncognito = async (value: boolean) => {
     setIncognito(value);
     const uid = auth.currentUser?.uid;
-    if (uid) await updatePrivacySettings(uid, { incognito: value });
+    if (uid) await updateDoc(doc(db, 'users', uid), { incognito: value });
     if (value) showAlert('Incognito Mode', 'You are now invisible to other users!');
   };
 
   const handleBlurPhoto = async (value: boolean) => {
     setBlurPhoto(value);
     const uid = auth.currentUser?.uid;
-    if (uid) await updatePrivacySettings(uid, { blurPhoto: value });
+    if (uid) await updateDoc(doc(db, 'users', uid), { blurPhoto: value });
   };
 
   const handleSaveBio = async () => {
@@ -113,29 +111,23 @@ export default function Profile() {
       showAlert('Permission needed', 'Please allow photo access!');
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.7,
     });
-
     if (result.canceled) return;
-
     try {
       setPhotoUploading(true);
       const uid = auth.currentUser?.uid;
       if (!uid) return;
-
       const response = await fetch(result.assets[0].uri);
       const blob = await response.blob();
-
       const storage = getStorage();
       const photoRef = storageRef(storage, `users/${uid}/profile.jpg`);
       await uploadBytes(photoRef, blob);
       const downloadURL = await getDownloadURL(photoRef);
-
       await updateDoc(doc(db, 'users', uid), { photo: downloadURL });
       setUserPhoto(downloadURL);
       setPhotoUploading(false);
@@ -152,7 +144,7 @@ export default function Profile() {
     { label: 'Add Bio', icon: 'document-text-outline', done: !!userBio, onPress: () => { setBioInput(userBio); setShowBioEdit(true); } },
     { label: 'Add Photo', icon: 'camera-outline', done: !!userPhoto, onPress: handleAddPhoto },
     { label: 'Set Intent', icon: 'heart-outline', done: true, onPress: () => router.push('/auth/onboarding') },
-    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/(tabs)/VerificationScreen') },
+    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/(tabs)/VerifySelfie') },
   ];
 
   const SETTINGS_ITEMS = [

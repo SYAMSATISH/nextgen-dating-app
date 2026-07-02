@@ -1,16 +1,15 @@
-import { Tabs } from "expo-router";
+import { Tabs, useSegments } from "expo-router";
 import React from "react";
 import { View, StyleSheet, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons, FontAwesome } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/constants/ThemeContext";
 
-function TabIcon({ name, library, focused, label }: any) {
-  const Icon = library === 'ion' ? Ionicons :
-               library === 'mc' ? MaterialCommunityIcons : FontAwesome;
+function TabIcon({ name, focused, label }: any) {
   return (
     <View style={styles.tabItem}>
       <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-        <Icon name={name} size={20} color={focused ? '#fff' : '#666'} />
+        <Ionicons name={name} size={20} color={focused ? '#fff' : '#666'} />
       </View>
       {focused && <Text style={styles.tabLabel}>{label}</Text>}
     </View>
@@ -18,25 +17,42 @@ function TabIcon({ name, library, focused, label }: any) {
 }
 
 export default function TabLayout() {
+  const { colors } = useTheme();
+  const segments = useSegments();
+  const isChatScreen = segments.some(s => s === 'charscreenf');
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <Tabs
-        initialRouteName="people"
+      initialRouteName="profile"
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: false,
-          tabBarStyle: styles.tabBar,
-          tabBarItemStyle: {
-            height: 90,
-            paddingVertical: 14,
+          tabBarStyle: isChatScreen ? { display: 'none' } : {
+            position: 'absolute',
+            bottom: 20,
+            left: 16,
+            right: 16,
+            height: 64,
+            borderRadius: 32,
+            borderTopWidth: 0,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            elevation: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.5,
+            shadowRadius: 20,
           },
+          tabBarItemStyle: { height: 64, paddingVertical: 10 },
         }}
       >
         <Tabs.Screen
           name="profile"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="user" library="fa" focused={focused} label="Profile" />
+              <TabIcon name="person" focused={focused} label="Profile" />
             ),
           }}
         />
@@ -44,7 +60,7 @@ export default function TabLayout() {
           name="discover"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="compass-outline" library="mc" focused={focused} label="Discover" />
+              <TabIcon name="compass-outline" focused={focused} label="Discover" />
             ),
           }}
         />
@@ -52,7 +68,7 @@ export default function TabLayout() {
           name="people"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="people" library="ion" focused={focused} label="People" />
+              <TabIcon name="people" focused={focused} label="People" />
             ),
           }}
         />
@@ -60,7 +76,7 @@ export default function TabLayout() {
           name="(chats)"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="chatbubble-ellipses" library="ion" focused={focused} label="Chats" />
+              <TabIcon name="chatbubble-ellipses" focused={focused} label="Chats" />
             ),
           }}
         />
@@ -68,13 +84,16 @@ export default function TabLayout() {
           name="index"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="heart" library="ion" focused={focused} label="Liked You" />
+              <TabIcon name="sparkles" focused={focused} label="Home" />
             ),
           }}
         />
+        {/* VerificationScreen — tab bar లో hide, route గా మాత్రమే */}
         <Tabs.Screen
           name="VerifySelfie"
-          options={{ href: null }}
+          options={{
+            href: null,
+          }}
         />
       </Tabs>
     </SafeAreaView>
@@ -82,35 +101,8 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    position: 'absolute',
-    bottom: 20,
-    left: 16,
-    right: 16,
-    height: 90,
-    borderRadius: 45,
-    borderTopWidth: 0,
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    elevation: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-  },
-  iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  tabItem: { alignItems: 'center', justifyContent: 'center', gap: 3 },
+  iconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   iconWrapActive: {
     backgroundColor: '#FF2D7A',
     shadowColor: '#FF2D7A',
@@ -119,10 +111,5 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 10,
   },
-  tabLabel: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: '#FF2D7A',
-    letterSpacing: 0.5,
-  },
+  tabLabel: { fontSize: 9, fontWeight: '600', color: '#FF2D7A', letterSpacing: 0.5 },
 });
