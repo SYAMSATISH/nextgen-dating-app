@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Image, ImageBackground } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform, Image } from "react-native";
 import React, { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -7,6 +7,19 @@ import { auth, db } from "@/constants/appwrite";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { useTheme } from "@/constants/ThemeContext";
 import { FONTS } from "@/constants/fonts";
+import * as ImagePicker from 'expo-image-picker';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+const PLANS = [
+  { plan: "Exclusive photo insights", p1: true, p2: true },
+  { plan: "Fast track your likes", p1: true, p2: true },
+  { plan: "Standout every day", p1: true, p2: true },
+  { plan: "Unlimited likes", p1: true, p2: false },
+  { plan: "See who liked you", p1: true, p2: false },
+  { plan: "Advanced filters", p1: true, p2: false },
+  { plan: "Incognito mode", p1: true, p2: false },
+  { plan: "Two compliments a week", p1: true, p2: true },
+];
 
 const ACHIEVEMENTS = [
   { id: 'first_match', icon: 'heart', title: 'First Match!', desc: 'Got your first match', unlocked: true, color: '#FF2D7A' },
@@ -17,11 +30,13 @@ const ACHIEVEMENTS = [
   { id: 'social', icon: 'people', title: 'Social Butterfly', desc: 'Match with 5 people', unlocked: false, color: '#4FC3F7' },
 ];
 
-const FEATURED_PROFILES = [
-  { id: '1', name: 'Maya', age: 24, role: 'Designer', image: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400' },
-  { id: '2', name: 'Alex', age: 27, role: 'Photographer', image: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=400' },
-  { id: '3', name: 'Priya', age: 23, role: 'Developer', image: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=400' },
-];
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 export default function Profile() {
   const router = useRouter();
@@ -30,15 +45,13 @@ export default function Profile() {
   const [blurPhoto, setBlurPhoto] = useState(false);
   const [profileScore, setProfileScore] = useState(0);
   const [streak, setStreak] = useState(0);
-  const [userName, setUserName] = useState('');
+  const [userName, setUserName] = useState('Profile');
   const [userBio, setUserBio] = useState('');
-  const [userAge, setUserAge] = useState('');
-  const [userIntent, setUserIntent] = useState('');
+  const [userPhoto, setUserPhoto] = useState('');
   const [showSettings, setShowSettings] = useState(false);
-  const [showEditProfile, setShowEditProfile] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editBio, setEditBio] = useState('');
-  const [editAge, setEditAge] = useState('');
+  const [showBioEdit, setShowBioEdit] = useState(false);
+  const [bioInput, setBioInput] = useState('');
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   useEffect(() => { loadUserData(); }, []);
 
@@ -48,10 +61,9 @@ export default function Profile() {
     const userSnap = await getDoc(doc(db, 'users', uid));
     if (userSnap.exists()) {
       const data = userSnap.data();
-      setUserName(data.name || '');
+      setUserName(data.name || 'Profile');
       setUserBio(data.bio || '');
-      setUserAge(data.age?.toString() || '');
-      setUserIntent(data.intent || '');
+      setUserPhoto(data.photo || '');
       setIncognito(data.incognito || false);
       setBlurPhoto(data.blurPhoto || false);
       setStreak(data.streak || 0);
@@ -67,137 +79,148 @@ export default function Profile() {
 
   const handleLogout = async () => {
     await signOut(auth);
-    router.replace('/auth/signin');
+    router.replace("/auth/signin");
   };
 
-  const handleSaveProfile = async () => {
+  const handleIncognito = async (value: boolean) => {
+    setIncognito(value);
     const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    await updateDoc(doc(db, 'users', uid), {
-      name: editName,
-      bio: editBio,
-      age: parseInt(editAge) || 0,
-    });
-    setUserName(editName);
-    setUserBio(editBio);
-    setUserAge(editAge);
-    setShowEditProfile(false);
-    Alert.alert('✅ Profile updated!', 'Your profile has been saved.');
-    loadUserData();
+    if (uid) await updateDoc(doc(db, 'users', uid), { incognito: value });
+    if (value) showAlert('Incognito Mode', 'You are now invisible to other users!');
   };
 
-  const openEditProfile = () => {
-    setEditName(userName);
-    setEditBio(userBio);
-    setEditAge(userAge);
-    setShowEditProfile(true);
+  const handleBlurPhoto = async (value: boolean) => {
+    setBlurPhoto(value);
+    const uid = auth.currentUser?.uid;
+    if (uid) await updateDoc(doc(db, 'users', uid), { blurPhoto: value });
   };
+
+  const handleSaveBio = async () => {
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      await updateDoc(doc(db, 'users', uid), { bio: bioInput });
+      setUserBio(bioInput);
+    }
+    setShowBioEdit(false);
+    showAlert('✅ Bio saved!', 'Your bio has been updated.');
+  };
+
+  const handleAddPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      showAlert('Permission needed', 'Please allow photo access!');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled) return;
+    try {
+      setPhotoUploading(true);
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      const response = await fetch(result.assets[0].uri);
+      const blob = await response.blob();
+      const storage = getStorage();
+      const photoRef = storageRef(storage, `users/${uid}/profile.jpg`);
+      await uploadBytes(photoRef, blob);
+      const downloadURL = await getDownloadURL(photoRef);
+      await updateDoc(doc(db, 'users', uid), { photo: downloadURL });
+      setUserPhoto(downloadURL);
+      setPhotoUploading(false);
+      showAlert('✅ Photo saved!', 'Profile photo updated!');
+      loadUserData();
+    } catch (error) {
+      setPhotoUploading(false);
+      showAlert('Error', 'Photo upload failed, try again!');
+    }
+  };
+
+  const PROGRESS_SECTIONS = [
+    { label: 'Basic Information', icon: 'person-outline', done: !!userName, onPress: () => showAlert('Basic Info', 'Name: ' + userName) },
+    { label: 'Add Bio', icon: 'document-text-outline', done: !!userBio, onPress: () => { setBioInput(userBio); setShowBioEdit(true); } },
+    { label: 'Add Photo', icon: 'camera-outline', done: !!userPhoto, onPress: handleAddPhoto },
+    { label: 'Set Intent', icon: 'heart-outline', done: true, onPress: () => router.push('/auth/onboarding') },
+    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/auth/VerificationScreen') },
+  ];
+
+  const SETTINGS_ITEMS = [
+    { icon: 'notifications-outline', label: 'Notifications', color: '#FF6B00', onPress: () => showAlert('Notifications', 'Push notifications coming soon! 🔔') },
+    { icon: 'shield-outline', label: 'Privacy & Safety', color: '#4FC3F7', onPress: () => { setShowSettings(false); router.push('/auth/onboarding'); } },
+    { icon: isDark ? 'sunny-outline' : 'moon-outline', label: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode', color: isDark ? '#FFD700' : '#A78BFA', onPress: () => { toggleTheme(); setShowSettings(false); } },
+    { icon: 'help-circle-outline', label: 'Help & Support', color: '#4ade80', onPress: () => showAlert('Help & Support', 'Email us: support@nextgendating.com 📧') },
+    { icon: 'information-circle-outline', label: 'About App', color: '#A78BFA', onPress: () => showAlert('NextGen Dating App', 'Version 1.0.0\nBuilt with ❤️ by Team NextGen') },
+    { icon: 'star-outline', label: 'Rate the App', color: '#FFD700', onPress: () => showAlert('Rate Us! ⭐', 'Thank you for using NextGen Dating!') },
+  ];
 
   return (
-    <ScrollView style={{ backgroundColor: colors.background, flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: 120 }}>
+      <View style={{ gap: 16, padding: 20 }}>
 
-      {/* Hero Banner */}
-      <ImageBackground
-        source={{ uri: 'https://images.pexels.com/photos/1024993/pexels-photo-1024993.jpeg?auto=compress&cs=tinysrgb&w=800' }}
-        style={styles.heroBanner}
-      >
-        <View style={styles.heroOverlay}>
-          <View style={styles.heroTextWrap}>
-            <Text style={[styles.heroTitle, { fontFamily: FONTS.bold }]}>NEXT{'\n'}GEN</Text>
-            <Text style={[styles.heroSub, { fontFamily: FONTS.medium }]}>DATING APP</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={[styles.headerSub, { color: colors.subtext, fontFamily: FONTS.medium }]}>MY ACCOUNT</Text>
+            <Text style={[styles.headerTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Profile</Text>
           </View>
-          {/* Settings buttons on hero */}
-          <View style={styles.heroButtons}>
-            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={toggleTheme}>
-              <Ionicons name={isDark ? "sunny" : "moon"} size={20} color={isDark ? '#FFD700' : '#A78BFA'} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={() => setShowSettings(true)}>
-              <Ionicons name="settings-outline" size={20} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ImageBackground>
-
-      <View style={{ gap: 16, padding: 16 }}>
-
-        {/* Next Gen Features */}
-        <View style={{ gap: 10 }}>
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Next Gen Features</Text>
-          <View style={styles.featuresRow}>
-            <TouchableOpacity style={[styles.featureBtn, { backgroundColor: 'rgba(255,45,122,0.15)', borderColor: '#FF2D7A' }]} onPress={() => router.push('/datediary')}>
-              <Ionicons name="book" size={18} color="#FF2D7A" />
-              <Text style={[styles.featureBtnText, { color: '#FF2D7A', fontFamily: FONTS.semibold }]}>Date Diary</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.featureBtn, { backgroundColor: 'rgba(79,195,247,0.15)', borderColor: '#4FC3F7' }]} onPress={() => router.push('/videodating')}>
-              <Ionicons name="sparkles" size={18} color="#4FC3F7" />
-              <Text style={[styles.featureBtnText, { color: '#4FC3F7', fontFamily: FONTS.semibold }]}>Speed Date</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.featureBtn, { backgroundColor: 'rgba(255,107,0,0.15)', borderColor: '#FF6B00' }]} onPress={() => router.push('/storyprofile')}>
-              <Ionicons name="person" size={18} color="#FF6B00" />
-              <Text style={[styles.featureBtnText, { color: '#FF6B00', fontFamily: FONTS.semibold }]}>Story</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Featured Profiles */}
-        <View style={{ gap: 10 }}>
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Featured Profiles</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-            {FEATURED_PROFILES.map((profile) => (
-              <TouchableOpacity key={profile.id} style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push('/(tabs)/people')}>
-                <Image source={{ uri: profile.image }} style={styles.profileAvatar} />
-                <Text style={[styles.profileName, { color: colors.text, fontFamily: FONTS.bold }]}>{profile.name}, {profile.age}</Text>
-                <Text style={[styles.profileRole, { color: colors.subtext, fontFamily: FONTS.regular }]}>{profile.role}</Text>
-                <View style={styles.verifiedRow}>
-                  <Ionicons name="shield-checkmark" size={12} color="#4ade80" />
-                  <Text style={[styles.verifiedText, { fontFamily: FONTS.medium }]}>Verified Profile</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Matching Suggestions */}
-        <View style={[styles.matchCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.matchTitle, { color: colors.text, fontFamily: FONTS.bold }]}>
-            You have 3 new matching suggestions!
-          </Text>
-          <TouchableOpacity style={styles.exploreBtn} onPress={() => router.push('/(tabs)/people')}>
-            <Text style={[styles.exploreBtnText, { fontFamily: FONTS.bold }]}>EXPLORE 3 NEW MATCHES</Text>
+          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setShowSettings(true)}>
+            <Ionicons name="settings-outline" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
 
-        {/* Profile Card */}
-        <View style={[styles.profileInfoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.avatarSection}>
-            <View style={styles.avatarWrap}>
-              <View style={[styles.avatarPlaceholder, { backgroundColor: 'rgba(255,45,122,0.15)' }]}>
-                <Ionicons name="person" size={40} color="#FF2D7A" />
+        {/* Avatar Row */}
+        <View style={[styles.avatarRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity onPress={handleAddPhoto}>
+            {userPhoto ? (
+              <Image source={{ uri: userPhoto }} style={styles.avatarImg} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                {photoUploading
+                  ? <Ionicons name="hourglass" size={28} color="#FF2D7A" />
+                  : <Ionicons name="camera" size={28} color="#FF2D7A" />
+                }
               </View>
-              <TouchableOpacity style={styles.avatarEditBtn} onPress={() => Alert.alert('📸 Add Photo', 'Photo upload coming soon!')}>
-                <Ionicons name="camera" size={12} color="#fff" />
-              </TouchableOpacity>
+            )}
+          </TouchableOpacity>
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={[styles.userName, { color: colors.text, fontFamily: FONTS.bold }]}>{userName}</Text>
+            <View style={styles.verifiedBadge}>
+              <Ionicons name="shield-checkmark" size={12} color="#4ade80" />
+              <Text style={[styles.verifiedText, { fontFamily: FONTS.medium }]}>Verified Profile</Text>
             </View>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={[styles.userName, { color: colors.text, fontFamily: FONTS.bold }]}>{userName || 'Your Name'}</Text>
-              {userAge ? <Text style={[styles.userAge, { color: colors.subtext, fontFamily: FONTS.regular }]}>Age: {userAge}</Text> : null}
-              {userBio
-                ? <Text style={[styles.userBio, { color: colors.subtext, fontFamily: FONTS.regular }]} numberOfLines={2}>{userBio}</Text>
-                : <Text style={[styles.userBio, { color: colors.subtext, fontFamily: FONTS.regular }]}>No bio yet — add one!</Text>
-              }
-              <View style={styles.verifiedBadge}>
-                <Ionicons name="shield-checkmark" size={12} color="#4ade80" />
-                <Text style={[styles.verifiedText, { fontFamily: FONTS.medium }]}>Verified Profile</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.logoutBtnSmall} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={16} color="#fff" />
-              <Text style={[styles.logoutSmallText, { fontFamily: FONTS.semibold }]}>Logout</Text>
-            </TouchableOpacity>
+            {userBio ? <Text style={[styles.userBioText, { color: colors.subtext, fontFamily: FONTS.regular }]} numberOfLines={1}>{userBio}</Text> : null}
           </View>
-          <TouchableOpacity style={[styles.editProfileBtn, { borderColor: '#FF2D7A' }]} onPress={openEditProfile}>
-            <Ionicons name="pencil" size={16} color="#FF2D7A" />
-            <Text style={[styles.editProfileText, { fontFamily: FONTS.semibold }]}>Edit Profile</Text>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={18} color="#fff" />
+            <Text style={[styles.logoutText, { fontFamily: FONTS.semibold }]}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActionsRow}>
+          <TouchableOpacity
+            style={[styles.quickBtn, { backgroundColor: 'rgba(255,45,122,0.1)', borderColor: '#FF2D7A' }]}
+            onPress={() => router.push('/datediary')}
+          >
+            <Ionicons name="book" size={16} color="#FF2D7A" />
+            <Text style={[styles.quickBtnText, { color: '#FF2D7A', fontFamily: FONTS.semibold }]}>Date Diary</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickBtn, { backgroundColor: 'rgba(79,195,247,0.1)', borderColor: '#4FC3F7' }]}
+            onPress={() => router.push('/storyprofile')}
+          >
+            <Ionicons name="sparkles" size={16} color="#4FC3F7" />
+            <Text style={[styles.quickBtnText, { color: '#4FC3F7', fontFamily: FONTS.semibold }]}>Story</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickBtn, { backgroundColor: 'rgba(255,107,0,0.1)', borderColor: '#FF6B00' }]}
+            onPress={() => router.push('../videodating')}
+          >
+            <Ionicons name="videocam" size={16} color="#FF6B00" />
+            <Text style={[styles.quickBtnText, { color: '#FF6B00', fontFamily: FONTS.semibold }]}>Speed Date</Text>
           </TouchableOpacity>
         </View>
 
@@ -210,26 +233,22 @@ export default function Profile() {
           <View style={[styles.progressBarOuter, { backgroundColor: colors.border }]}>
             <View style={[styles.progressBarInner, { width: `${profileScore}%` as any }]} />
           </View>
-          {[
-            { label: 'Basic Information', icon: 'person-outline', done: !!userName, onPress: openEditProfile },
-            { label: 'Add Bio', icon: 'document-text-outline', done: !!userBio, onPress: openEditProfile },
-            { label: 'Add Photo', icon: 'camera-outline', done: false, onPress: () => Alert.alert('📸', 'Photo upload coming soon!') },
-            { label: 'Set Intent', icon: 'heart-outline', done: !!userIntent, onPress: () => router.push('/auth/onboarding') },
-            { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: true, onPress: () => router.push('/VerificationScreen') },
-          ].map((section, i) => (
-            <TouchableOpacity key={i} style={styles.progressSection} onPress={section.onPress}>
-              <View style={[styles.progressSectionIcon, { backgroundColor: section.done ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)' }]}>
-                <Ionicons name={section.icon as any} size={16} color={section.done ? '#4ade80' : colors.subtext} />
-              </View>
-              <Text style={[styles.progressSectionText, { color: section.done ? colors.text : colors.subtext, fontFamily: FONTS.regular }]}>
-                {section.label}
-              </Text>
-              {section.done
-                ? <Ionicons name="checkmark-circle" size={18} color="#4ade80" />
-                : <Ionicons name="add-circle-outline" size={18} color="#FF2D7A" />
-              }
-            </TouchableOpacity>
-          ))}
+          <View style={{ gap: 10 }}>
+            {PROGRESS_SECTIONS.map((section, i) => (
+              <TouchableOpacity key={i} style={styles.progressSection} onPress={section.onPress}>
+                <View style={[styles.progressSectionIcon, { backgroundColor: section.done ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.05)' }]}>
+                  <Ionicons name={section.icon as any} size={16} color={section.done ? '#4ade80' : colors.subtext} />
+                </View>
+                <Text style={[styles.progressSectionText, { color: section.done ? colors.text : colors.subtext, fontFamily: FONTS.regular }]}>
+                  {section.label}
+                </Text>
+                {section.done
+                  ? <Ionicons name="checkmark-circle" size={18} color="#4ade80" />
+                  : <Ionicons name="add-circle-outline" size={18} color="#FF2D7A" />
+                }
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {/* Stats */}
@@ -244,6 +263,9 @@ export default function Profile() {
             <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }]}>
               <Text style={[styles.statNumber, { fontFamily: FONTS.bold }]}>{profileScore}%</Text>
               <Text style={[styles.statLabel, { color: colors.subtext, fontFamily: FONTS.regular }]}>Profile Score</Text>
+              <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+                <View style={[styles.progressFill, { width: `${profileScore}%` as any }]} />
+              </View>
             </View>
             <View style={[styles.statCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -265,7 +287,11 @@ export default function Profile() {
           </View>
           <View style={styles.achievementsGrid}>
             {ACHIEVEMENTS.map((a) => (
-              <View key={a.id} style={[styles.achievementCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }, !a.unlocked && styles.achievementLocked]}>
+              <View key={a.id} style={[
+                styles.achievementCard,
+                { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' },
+                !a.unlocked && styles.achievementLocked
+              ]}>
                 <View style={[styles.achieveIconWrap, { backgroundColor: `${a.color}22` }]}>
                   <Ionicons name={a.icon as any} size={24} color={a.unlocked ? a.color : '#555'} />
                 </View>
@@ -298,7 +324,7 @@ export default function Profile() {
               <Text style={[styles.privacyLabel, { color: colors.text, fontFamily: FONTS.semibold }]}>Incognito Mode</Text>
               <Text style={[styles.privacyDesc, { color: colors.subtext, fontFamily: FONTS.regular }]}>Hide your profile from others</Text>
             </View>
-            <Switch value={incognito} onValueChange={setIncognito} trackColor={{ false: colors.border, true: '#FF2D7A' }} thumbColor="#fff" />
+            <Switch value={incognito} onValueChange={handleIncognito} trackColor={{ false: colors.border, true: '#FF2D7A' }} thumbColor="#fff" />
           </View>
           <View style={styles.privacyRow}>
             <View style={[styles.privacyIconWrap, { backgroundColor: 'rgba(79,195,247,0.15)' }]}>
@@ -308,39 +334,69 @@ export default function Profile() {
               <Text style={[styles.privacyLabel, { color: colors.text, fontFamily: FONTS.semibold }]}>Blur My Photo</Text>
               <Text style={[styles.privacyDesc, { color: colors.subtext, fontFamily: FONTS.regular }]}>Show blurred photo until match</Text>
             </View>
-            <Switch value={blurPhoto} onValueChange={setBlurPhoto} trackColor={{ false: colors.border, true: '#FF2D7A' }} thumbColor="#fff" />
+            <Switch value={blurPhoto} onValueChange={handleBlurPhoto} trackColor={{ false: colors.border, true: '#FF2D7A' }} thumbColor="#fff" />
           </View>
+          <TouchableOpacity style={styles.screenshotBtn} onPress={() => showAlert('Screenshot Detected!', 'Please respect others privacy.')}>
+            <Ionicons name="camera" size={18} color="#fff" />
+            <Text style={[styles.screenshotText, { fontFamily: FONTS.bold }]}>Test Screenshot Alert</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Premium */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {[{ title: 'Premium+', sub: 'Get the VIP treatment' }, { title: 'Premium', sub: 'Get the VIP treatment' }].map((plan) => (
+            <View key={plan.title} style={[styles.premiumCard, { marginRight: 12 }]}>
+              <View style={styles.premiumIconWrap}>
+                <Ionicons name="diamond" size={28} color="#fff" />
+              </View>
+              <Text style={[styles.premiumTitle, { fontFamily: FONTS.bold }]}>{plan.title}</Text>
+              <Text style={[styles.premiumSub, { fontFamily: FONTS.regular }]}>{plan.sub}</Text>
+              <TouchableOpacity style={styles.upgradeBtn} onPress={() => showAlert('Upgrade to ' + plan.title, 'Payment integration coming soon! 💎')}>
+                <Text style={[styles.upgradeText, { fontFamily: FONTS.bold }]}>Upgrade Now</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Plans Table */}
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.row1, styles.tableHeaderText, { color: colors.subtext, fontFamily: FONTS.bold }]}>What you get:</Text>
+            <Text style={[styles.row2, styles.tableHeaderText, { color: colors.subtext, fontFamily: FONTS.bold }]}>Premium+</Text>
+            <Text style={[styles.row3, styles.tableHeaderText, { color: colors.subtext, fontFamily: FONTS.bold }]}>Premium</Text>
+          </View>
+          {PLANS.map((p) => (
+            <View style={[styles.tableItem, { borderBottomColor: colors.border }]} key={p.plan}>
+              <Text style={[styles.planText, { color: colors.subtext, fontFamily: FONTS.regular }]}>{p.plan}</Text>
+              <View style={styles.row2}><Ionicons name="checkmark-circle" size={20} color={p.p1 ? '#FF2D7A' : colors.border} /></View>
+              <View style={styles.row3}><Ionicons name="checkmark-circle" size={20} color={p.p2 ? '#FF2D7A' : colors.border} /></View>
+            </View>
+          ))}
         </View>
 
       </View>
 
-      {/* Edit Profile Modal */}
-      <Modal visible={showEditProfile} animationType="slide" transparent>
+      {/* Bio Edit Modal */}
+      <Modal visible={showBioEdit} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Edit Profile</Text>
-              <TouchableOpacity onPress={() => setShowEditProfile(false)}>
+              <Text style={[styles.modalTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Edit Bio</Text>
+              <TouchableOpacity onPress={() => setShowBioEdit(false)}>
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            <Text style={[styles.inputLabel, { color: colors.subtext, fontFamily: FONTS.medium }]}>Full Name</Text>
-            <View style={[styles.inputWrap, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Ionicons name="person-outline" size={18} color="#FF2D7A" />
-              <TextInput style={[styles.input, { color: colors.text, fontFamily: FONTS.regular }]} placeholder="Your name" placeholderTextColor={colors.subtext} value={editName} onChangeText={setEditName} />
-            </View>
-            <Text style={[styles.inputLabel, { color: colors.subtext, fontFamily: FONTS.medium }]}>Age</Text>
-            <View style={[styles.inputWrap, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Ionicons name="calendar-outline" size={18} color="#FF2D7A" />
-              <TextInput style={[styles.input, { color: colors.text, fontFamily: FONTS.regular }]} placeholder="Your age" placeholderTextColor={colors.subtext} value={editAge} onChangeText={setEditAge} keyboardType="numeric" />
-            </View>
-            <Text style={[styles.inputLabel, { color: colors.subtext, fontFamily: FONTS.medium }]}>Bio</Text>
-            <View style={[styles.inputWrap, { backgroundColor: colors.background, borderColor: colors.border, alignItems: 'flex-start', paddingTop: 12 }]}>
-              <Ionicons name="document-text-outline" size={18} color="#FF2D7A" style={{ marginTop: 2 }} />
-              <TextInput style={[styles.input, { color: colors.text, fontFamily: FONTS.regular, minHeight: 80, textAlignVertical: 'top' }]} placeholder="Tell people about yourself..." placeholderTextColor={colors.subtext} value={editBio} onChangeText={setEditBio} multiline />
-            </View>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
-              <Text style={[styles.saveBtnText, { fontFamily: FONTS.bold }]}>Save Profile</Text>
+            <TextInput
+              style={[styles.bioInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text, fontFamily: FONTS.regular }]}
+              placeholder="Tell people about yourself..."
+              placeholderTextColor={colors.subtext}
+              value={bioInput}
+              onChangeText={setBioInput}
+              multiline
+              numberOfLines={4}
+            />
+            <TouchableOpacity style={styles.saveBioBtn} onPress={handleSaveBio}>
+              <Text style={[styles.saveBioBtnText, { fontFamily: FONTS.bold }]}>Save Bio</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -356,14 +412,8 @@ export default function Profile() {
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            {[
-              { icon: 'notifications-outline', label: 'Notifications', color: '#FF6B00', action: () => Alert.alert('Notifications', 'Coming soon! 🔔') },
-              { icon: 'shield-outline', label: 'Privacy & Safety', color: '#4FC3F7', action: () => Alert.alert('Privacy', 'Coming soon!') },
-              { icon: 'help-circle-outline', label: 'Help & Support', color: '#4ade80', action: () => Alert.alert('Help', 'Email: support@nextgendating.com') },
-              { icon: 'information-circle-outline', label: 'About App', color: '#A78BFA', action: () => Alert.alert('NextGen Dating', 'Version 1.0.0 ❤️') },
-              { icon: 'star-outline', label: 'Rate the App', color: '#FFD700', action: () => Alert.alert('Rate Us! ⭐', 'Thank you!') },
-            ].map((item, i) => (
-              <TouchableOpacity key={i} style={[styles.settingsItem, { borderBottomColor: colors.border }]} onPress={item.action}>
+            {SETTINGS_ITEMS.map((item, i) => (
+              <TouchableOpacity key={i} style={[styles.settingsItem, { borderBottomColor: colors.border }]} onPress={item.onPress}>
                 <View style={[styles.settingsIconWrap, { backgroundColor: `${item.color}22` }]}>
                   <Ionicons name={item.icon as any} size={20} color={item.color} />
                 </View>
@@ -384,54 +434,39 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
-  heroBanner: { height: 200 },
-  heroOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', padding: 16, paddingBottom: 20 },
-  heroTextWrap: { gap: 2 },
-  heroTitle: { fontSize: 36, fontWeight: '900', color: '#fff', lineHeight: 40 },
-  heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.9)', letterSpacing: 3 },
-  heroButtons: { flexDirection: 'row', gap: 8, alignSelf: 'flex-start', marginTop: 40 },
-  iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 18, fontWeight: '700' },
-  featuresRow: { flexDirection: 'row', gap: 8 },
-  featureBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 16, borderWidth: 1 },
-  featureBtnText: { fontSize: 12, fontWeight: '600' },
-  profileCard: { width: 150, borderRadius: 20, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1 },
-  profileAvatar: { width: 80, height: 80, borderRadius: 40, marginBottom: 4 },
-  profileName: { fontSize: 15, fontWeight: '700' },
-  profileRole: { fontSize: 12 },
-  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  verifiedText: { fontSize: 11, color: '#4ade80' },
-  matchCard: { borderRadius: 20, padding: 20, alignItems: 'center', gap: 16, borderWidth: 1 },
-  matchTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  exploreBtn: { backgroundColor: '#FF2D7A', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 30, width: '100%', alignItems: 'center', shadowColor: '#FF2D7A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
-  exploreBtnText: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 1 },
-  profileInfoCard: { borderRadius: 20, padding: 16, borderWidth: 1, gap: 14 },
-  avatarSection: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarWrap: { position: 'relative' },
-  avatarPlaceholder: { width: 70, height: 70, borderRadius: 35, alignItems: 'center', justifyContent: 'center' },
-  avatarEditBtn: { position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: '#FF2D7A', alignItems: 'center', justifyContent: 'center' },
-  userName: { fontSize: 18, fontWeight: '700' },
-  userAge: { fontSize: 12 },
-  userBio: { fontSize: 12, lineHeight: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  headerSub: { fontSize: 11, letterSpacing: 1.5 },
+  headerTitle: { fontSize: 26, fontWeight: '700', marginTop: 2 },
+  iconBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 20, borderWidth: 1 },
+  avatarImg: { width: 72, height: 72, borderRadius: 36, borderWidth: 2, borderColor: '#FF2D7A' },
+  avatarPlaceholder: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,45,122,0.1)', borderWidth: 2, borderColor: '#FF2D7A', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  userName: { fontSize: 20, fontWeight: '700' },
+  userBioText: { fontSize: 12 },
   verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  logoutBtnSmall: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ff4444', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16 },
-  logoutSmallText: { color: '#fff', fontSize: 12 },
-  editProfileBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
-  editProfileText: { color: '#FF2D7A', fontSize: 14 },
+  verifiedText: { fontSize: 12, color: '#4ade80' },
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ff4444', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },
+  logoutText: { color: '#fff', fontSize: 13 },
+  quickActionsRow: { flexDirection: 'row', gap: 8 },
+  quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
+  quickBtnText: { fontSize: 12 },
   section: { borderRadius: 20, padding: 16, gap: 12, borderWidth: 1 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionTitle: { fontSize: 16, fontWeight: '700' },
   glossIconWrap: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   progressPercent: { fontSize: 14, color: '#FFD700' },
   progressBarOuter: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressBarInner: { height: 8, borderRadius: 4, backgroundColor: '#FFD700' },
-  progressSection: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  progressSection: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   progressSectionIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   progressSectionText: { flex: 1, fontSize: 13 },
   statsRow: { flexDirection: 'row', gap: 10 },
   statCard: { flex: 1, borderRadius: 14, padding: 14, alignItems: 'center', gap: 4 },
   statNumber: { fontSize: 26, fontWeight: '800', color: '#FF2D7A' },
   statLabel: { fontSize: 12 },
+  progressBar: { width: '100%', height: 5, borderRadius: 3, marginTop: 6 },
+  progressFill: { height: 5, backgroundColor: '#FF2D7A', borderRadius: 3 },
   achievementsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   achievementCard: { width: '30%', borderRadius: 14, padding: 10, alignItems: 'center', gap: 4 },
   achievementLocked: { opacity: 0.4 },
@@ -445,15 +480,28 @@ const styles = StyleSheet.create({
   privacyInfo: { flex: 1 },
   privacyLabel: { fontSize: 14, fontWeight: '600' },
   privacyDesc: { fontSize: 12, marginTop: 2 },
+  screenshotBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FF2D7A', padding: 14, borderRadius: 14, marginTop: 4 },
+  screenshotText: { color: '#fff', fontSize: 14 },
+  premiumCard: { backgroundColor: '#FF6B00', width: 260, borderRadius: 24, padding: 20, alignItems: 'center', gap: 8 },
+  premiumIconWrap: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center' },
+  premiumTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  premiumSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)' },
+  upgradeBtn: { backgroundColor: '#1a1a1a', paddingVertical: 10, paddingHorizontal: 28, borderRadius: 20, marginTop: 4 },
+  upgradeText: { color: '#fff', fontSize: 14 },
+  tableHeader: { flexDirection: 'row', paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
+  tableHeaderText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  tableItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5 },
+  planText: { width: '40%', fontSize: 13 },
+  row1: { width: '40%' },
+  row2: { width: '30%', alignItems: 'center' },
+  row3: { width: '30%', alignItems: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 14, paddingBottom: 40 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  modalCard: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 16, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   modalTitle: { fontSize: 20, fontWeight: '700' },
-  inputLabel: { fontSize: 12, letterSpacing: 0.5, marginBottom: -8 },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
-  input: { flex: 1, fontSize: 15 },
-  saveBtn: { backgroundColor: '#FF2D7A', paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginTop: 8 },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  bioInput: { borderRadius: 14, borderWidth: 1, padding: 14, fontSize: 14, minHeight: 100, textAlignVertical: 'top' },
+  saveBioBtn: { backgroundColor: '#FF2D7A', paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
+  saveBioBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   settingsItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 0.5 },
   settingsIconWrap: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   settingsLabel: { flex: 1, fontSize: 15 },

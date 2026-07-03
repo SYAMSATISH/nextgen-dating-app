@@ -24,7 +24,7 @@ export default function TabLayout() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <Tabs
-      initialRouteName="profile"
+        initialRouteName="index"
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: false,
@@ -49,10 +49,10 @@ export default function TabLayout() {
         }}
       >
         <Tabs.Screen
-          name="profile"
+          name="index"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="person" focused={focused} label="Profile" />
+              <TabIcon name="sparkles" focused={focused} label="Home" />
             ),
           }}
         />
@@ -81,19 +81,16 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="index"
+          name="profile"
           options={{
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="sparkles" focused={focused} label="Home" />
+              <TabIcon name="person" focused={focused} label="Profile" />
             ),
           }}
         />
-        {/* VerificationScreen — tab bar లో hide, route గా మాత్రమే */}
         <Tabs.Screen
           name="VerifySelfie"
-          options={{
-            href: null,
-          }}
+          options={{ href: null }}
         />
       </Tabs>
     </SafeAreaView>

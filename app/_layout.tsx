@@ -25,17 +25,13 @@ function RootLayoutNav() {
   }, []);
 
   useEffect(() => {
-    if (user === undefined) return; // still loading
-
+    if (user === undefined) return;
     const inAuthGroup = segments[0] === 'auth';
-
     if (user) {
-      // Logged in — profile page ki
       if (inAuthGroup) {
-        router.replace('/(tabs)/profile');
+        router.replace('/(tabs)');  // Home screen ki — index.tsx
       }
     } else {
-      // Not logged in — signin ki
       if (!inAuthGroup) {
         router.replace('/auth/signin');
       }
@@ -54,6 +50,7 @@ function RootLayoutNav() {
         <Stack.Screen name="feedback" options={{ headerShown: false }} />
         <Stack.Screen name="videodating" options={{ headerShown: false }} />
         <Stack.Screen name="datediary" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/VerificationScreen" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style={isDark ? "light" : "dark"} />
