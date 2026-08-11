@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform, Image } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, Alert, TextInput, Modal, Platform, Image, ImageBackground } from "react-native";
 import React, { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -28,6 +28,12 @@ const ACHIEVEMENTS = [
   { id: 'profile_complete', icon: 'star', title: 'Profile Star', desc: 'Complete your profile', unlocked: true, color: '#FFD700' },
   { id: 'super_match', icon: 'trophy', title: 'Super Match', desc: 'Get 90%+ compatibility', unlocked: false, color: '#FFD700' },
   { id: 'social', icon: 'people', title: 'Social Butterfly', desc: 'Match with 5 people', unlocked: false, color: '#4FC3F7' },
+];
+
+const FEATURED_PROFILES = [
+  { id: '1', name: 'Maya', age: 24, role: 'Designer', image: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400' },
+  { id: '2', name: 'Alex', age: 27, role: 'Photographer', image: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=400' },
+  { id: '3', name: 'Priya', age: 23, role: 'Developer', image: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=400' },
 ];
 
 const showAlert = (title: string, message: string) => {
@@ -144,30 +150,88 @@ export default function Profile() {
     { label: 'Add Bio', icon: 'document-text-outline', done: !!userBio, onPress: () => { setBioInput(userBio); setShowBioEdit(true); } },
     { label: 'Add Photo', icon: 'camera-outline', done: !!userPhoto, onPress: handleAddPhoto },
     { label: 'Set Intent', icon: 'heart-outline', done: true, onPress: () => router.push('/auth/onboarding') },
-    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/auth/VerificationScreen') },
+    { label: 'Verify Identity', icon: 'shield-checkmark-outline', done: false, onPress: () => router.push('/VerificationScreen') },
   ];
 
   const SETTINGS_ITEMS = [
-    { icon: 'notifications-outline', label: 'Notifications', color: '#FF6B00', onPress: () => showAlert('Notifications', 'Push notifications coming soon! 🔔') },
-    { icon: 'shield-outline', label: 'Privacy & Safety', color: '#4FC3F7', onPress: () => { setShowSettings(false); router.push('/auth/onboarding'); } },
+    { icon: 'notifications-outline', label: 'Notifications', color: '#FF6B00', onPress: () => showAlert('Notifications', 'Coming soon! 🔔') },
+    { icon: 'shield-outline', label: 'Privacy & Safety', color: '#4FC3F7', onPress: () => showAlert('Privacy', 'Coming soon!') },
     { icon: isDark ? 'sunny-outline' : 'moon-outline', label: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode', color: isDark ? '#FFD700' : '#A78BFA', onPress: () => { toggleTheme(); setShowSettings(false); } },
-    { icon: 'help-circle-outline', label: 'Help & Support', color: '#4ade80', onPress: () => showAlert('Help & Support', 'Email us: support@nextgendating.com 📧') },
-    { icon: 'information-circle-outline', label: 'About App', color: '#A78BFA', onPress: () => showAlert('NextGen Dating App', 'Version 1.0.0\nBuilt with ❤️ by Team NextGen') },
-    { icon: 'star-outline', label: 'Rate the App', color: '#FFD700', onPress: () => showAlert('Rate Us! ⭐', 'Thank you for using NextGen Dating!') },
+    { icon: 'help-circle-outline', label: 'Help & Support', color: '#4ade80', onPress: () => showAlert('Help', 'Email: support@nextgendating.com') },
+    { icon: 'information-circle-outline', label: 'About App', color: '#A78BFA', onPress: () => showAlert('NextGen Dating', 'Version 1.0.0 ❤️') },
+    { icon: 'star-outline', label: 'Rate the App', color: '#FFD700', onPress: () => showAlert('Rate Us! ⭐', 'Thank you!') },
   ];
 
   return (
-    <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: 120 }}>
-      <View style={{ gap: 16, padding: 20 }}>
+    <ScrollView style={{ backgroundColor: colors.background, flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
 
-        {/* Header */}
-        <View style={styles.header}>
+      {/* Hero Banner */}
+      <ImageBackground
+        source={{ uri: 'https://images.pexels.com/photos/1024993/pexels-photo-1024993.jpeg?auto=compress&cs=tinysrgb&w=800' }}
+        style={styles.heroBanner}
+      >
+        <View style={styles.heroOverlay}>
           <View>
-            <Text style={[styles.headerSub, { color: colors.subtext, fontFamily: FONTS.medium }]}>MY ACCOUNT</Text>
-            <Text style={[styles.headerTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Profile</Text>
+            <Text style={[styles.heroTitle, { fontFamily: FONTS.bold }]}>NEXT{'\n'}GEN</Text>
+            <Text style={[styles.heroSub, { fontFamily: FONTS.medium }]}>DATING APP</Text>
           </View>
-          <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setShowSettings(true)}>
-            <Ionicons name="settings-outline" size={20} color={colors.text} />
+          <View style={styles.heroButtons}>
+            <TouchableOpacity style={[styles.heroIconBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]} onPress={toggleTheme}>
+              <Ionicons name={isDark ? "sunny" : "moon"} size={20} color={isDark ? '#FFD700' : '#A78BFA'} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.heroIconBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]} onPress={() => setShowSettings(true)}>
+              <Ionicons name="settings-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ImageBackground>
+
+      <View style={{ gap: 16, padding: 16 }}>
+
+        {/* Next Gen Features */}
+        <View style={{ gap: 10 }}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Next Gen Features</Text>
+          <View style={styles.quickActionsRow}>
+            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: 'rgba(255,45,122,0.1)', borderColor: '#FF2D7A' }]} onPress={() => router.push('/datediary')}>
+              <Ionicons name="book" size={16} color="#FF2D7A" />
+              <Text style={[styles.quickBtnText, { color: '#FF2D7A', fontFamily: FONTS.semibold }]}>Date Diary</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: 'rgba(79,195,247,0.1)', borderColor: '#4FC3F7' }]} onPress={() => router.push('/videodating')}>
+              <Ionicons name="sparkles" size={16} color="#4FC3F7" />
+              <Text style={[styles.quickBtnText, { color: '#4FC3F7', fontFamily: FONTS.semibold }]}>Speed Date</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.quickBtn, { backgroundColor: 'rgba(255,107,0,0.1)', borderColor: '#FF6B00' }]} onPress={() => router.push('/storyprofile')}>
+              <Ionicons name="person" size={16} color="#FF6B00" />
+              <Text style={[styles.quickBtnText, { color: '#FF6B00', fontFamily: FONTS.semibold }]}>Story</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Featured Profiles */}
+        <View style={{ gap: 10 }}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: FONTS.bold }]}>Featured Profiles</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+            {FEATURED_PROFILES.map((profile) => (
+              <TouchableOpacity key={profile.id} style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push('/(tabs)/people')}>
+                <Image source={{ uri: profile.image }} style={styles.profileAvatar} />
+                <Text style={[styles.profileName, { color: colors.text, fontFamily: FONTS.bold }]}>{profile.name}, {profile.age}</Text>
+                <Text style={[styles.profileRole, { color: colors.subtext, fontFamily: FONTS.regular }]}>{profile.role}</Text>
+                <View style={styles.verifiedRow}>
+                  <Ionicons name="shield-checkmark" size={12} color="#4ade80" />
+                  <Text style={[styles.verifiedRowText, { fontFamily: FONTS.medium }]}>Verified Profile</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Match Suggestions */}
+        <View style={[styles.matchCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.matchTitle, { color: colors.text, fontFamily: FONTS.bold }]}>
+            You have 3 new matching suggestions!
+          </Text>
+          <TouchableOpacity style={styles.exploreBtn} onPress={() => router.push('/(tabs)/people')}>
+            <Text style={[styles.exploreBtnText, { fontFamily: FONTS.bold }]}>EXPLORE 3 NEW MATCHES</Text>
           </TouchableOpacity>
         </View>
 
@@ -196,31 +260,6 @@ export default function Profile() {
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={18} color="#fff" />
             <Text style={[styles.logoutText, { fontFamily: FONTS.semibold }]}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.quickActionsRow}>
-          <TouchableOpacity
-            style={[styles.quickBtn, { backgroundColor: 'rgba(255,45,122,0.1)', borderColor: '#FF2D7A' }]}
-            onPress={() => router.push('/datediary')}
-          >
-            <Ionicons name="book" size={16} color="#FF2D7A" />
-            <Text style={[styles.quickBtnText, { color: '#FF2D7A', fontFamily: FONTS.semibold }]}>Date Diary</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.quickBtn, { backgroundColor: 'rgba(79,195,247,0.1)', borderColor: '#4FC3F7' }]}
-            onPress={() => router.push('/storyprofile')}
-          >
-            <Ionicons name="sparkles" size={16} color="#4FC3F7" />
-            <Text style={[styles.quickBtnText, { color: '#4FC3F7', fontFamily: FONTS.semibold }]}>Story</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.quickBtn, { backgroundColor: 'rgba(255,107,0,0.1)', borderColor: '#FF6B00' }]}
-            onPress={() => router.push('../videodating')}
-          >
-            <Ionicons name="videocam" size={16} color="#FF6B00" />
-            <Text style={[styles.quickBtnText, { color: '#FF6B00', fontFamily: FONTS.semibold }]}>Speed Date</Text>
           </TouchableOpacity>
         </View>
 
@@ -287,11 +326,7 @@ export default function Profile() {
           </View>
           <View style={styles.achievementsGrid}>
             {ACHIEVEMENTS.map((a) => (
-              <View key={a.id} style={[
-                styles.achievementCard,
-                { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' },
-                !a.unlocked && styles.achievementLocked
-              ]}>
+              <View key={a.id} style={[styles.achievementCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }, !a.unlocked && styles.achievementLocked]}>
                 <View style={[styles.achieveIconWrap, { backgroundColor: `${a.color}22` }]}>
                   <Ionicons name={a.icon as any} size={24} color={a.unlocked ? a.color : '#555'} />
                 </View>
@@ -434,10 +469,26 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  headerSub: { fontSize: 11, letterSpacing: 1.5 },
-  headerTitle: { fontSize: 26, fontWeight: '700', marginTop: 2 },
-  iconBtn: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  heroBanner: { height: 220 },
+  heroOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', padding: 20 },
+  heroTitle: { fontSize: 36, fontWeight: '900', color: '#fff', lineHeight: 40 },
+  heroSub: { fontSize: 13, color: 'rgba(255,255,255,0.9)', letterSpacing: 3, marginTop: 4 },
+  heroButtons: { flexDirection: 'row', gap: 8, alignSelf: 'flex-start' },
+  heroIconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  sectionTitle: { fontSize: 16, fontWeight: '700' },
+  quickActionsRow: { flexDirection: 'row', gap: 8 },
+  quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 16, borderWidth: 1 },
+  quickBtnText: { fontSize: 12 },
+  profileCard: { width: 150, borderRadius: 20, padding: 14, alignItems: 'center', gap: 6, borderWidth: 1 },
+  profileAvatar: { width: 80, height: 80, borderRadius: 40, marginBottom: 4 },
+  profileName: { fontSize: 15, fontWeight: '700' },
+  profileRole: { fontSize: 12 },
+  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  verifiedRowText: { fontSize: 11, color: '#4ade80' },
+  matchCard: { borderRadius: 20, padding: 20, alignItems: 'center', gap: 16, borderWidth: 1 },
+  matchTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  exploreBtn: { backgroundColor: '#FF2D7A', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 30, width: '100%', alignItems: 'center', shadowColor: '#FF2D7A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  exploreBtnText: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 1 },
   avatarRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 20, borderWidth: 1 },
   avatarImg: { width: 72, height: 72, borderRadius: 36, borderWidth: 2, borderColor: '#FF2D7A' },
   avatarPlaceholder: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,45,122,0.1)', borderWidth: 2, borderColor: '#FF2D7A', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
@@ -447,12 +498,8 @@ const styles = StyleSheet.create({
   verifiedText: { fontSize: 12, color: '#4ade80' },
   logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ff4444', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },
   logoutText: { color: '#fff', fontSize: 13 },
-  quickActionsRow: { flexDirection: 'row', gap: 8 },
-  quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
-  quickBtnText: { fontSize: 12 },
   section: { borderRadius: 20, padding: 16, gap: 12, borderWidth: 1 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '700' },
   glossIconWrap: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   progressPercent: { fontSize: 14, color: '#FFD700' },
