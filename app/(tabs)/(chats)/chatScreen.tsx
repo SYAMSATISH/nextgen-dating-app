@@ -11,7 +11,7 @@ import { ref, push, onValue, off } from 'firebase/database';
 import { useTheme } from '@/constants/ThemeContext';
 import { FONTS } from '@/constants/fonts';
 
-const BASE_URL = 'https://sanded-livable-salary.ngrok-free.dev';
+const BASE_URL = 'https://nextgen-dating-app.onrender.com';
 const ICEBREAKER_API = `${BASE_URL}/api/icebreakers`;
 const SMART_REPLY_API = `${BASE_URL}/api/smart-reply`;
 const NUDGE_API = `${BASE_URL}/api/nudge-check`;
