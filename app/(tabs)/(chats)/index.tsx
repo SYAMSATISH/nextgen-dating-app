@@ -216,7 +216,14 @@ export default function Chats() {
                     styles.chatItem,
                     { backgroundColor: colors.card, borderColor: chat.ghostingWarning ? '#FF5722' : colors.border }
                   ]}
-                  onPress={() => router.push('/charscreenf')}
+                  onPress={() => router.push({
+  pathname: '/(tabs)/(chats)/chatScreen',
+  params: {
+    matchedUserId: chat.otherUserId,
+    matchedUserName: chat.otherUserName,
+    matchedUserImage: chat.otherUserImage,
+  },
+} as any)}
                 >
                   <View style={styles.avatarContainer}>
                     <Avatar size={54} image={chat.otherUserImage} />

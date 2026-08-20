@@ -5,7 +5,7 @@ import {
   Platform, ActivityIndicator, Alert, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { auth, rtdb } from '@/constants/appwrite';
 import { ref, push, onValue, off } from 'firebase/database';
 import { useTheme } from '@/constants/ThemeContext';
@@ -31,17 +31,19 @@ type Message = {
   timestamp: number;
 };
 
-const DEMO_OTHER_USER = {
-  id: 'demo_user',
-  name: 'Priya Sharma',
-  image: 'https://images.pexels.com/photos/1391498/pexels-photo-1391498.jpeg',
-};
-
 export default function ChatScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { colors, isDark } = useTheme();
   const flatListRef = useRef<FlatList>(null);
   const currentUid = auth.currentUser?.uid || 'current_user';
+
+  // Real matched user from params
+  const otherUser = {
+    id: (params.matchedUserId as string) || 'demo_user',
+    name: (params.matchedUserName as string) || 'Priya Sharma',
+    image: (params.matchedUserImage as string) || 'https://images.pexels.com/photos/1391498/pexels-photo-1391498.jpeg',
+  };
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -53,17 +55,18 @@ export default function ChatScreen() {
   const [nudgeMessage, setNudgeMessage] = useState('');
   const [showVideoModal, setShowVideoModal] = useState(false);
 
-  const chatId = [currentUid, DEMO_OTHER_USER.id].sort().join('_');
+  // Unique chat ID based on both users
+  const chatId = [currentUid, otherUser.id].sort().join('_');
 
   useEffect(() => {
     loadIcebreakers();
     checkNudge();
-    if (Platform.OS !== 'web') loadMessages();
+    loadMessages();
     return () => {
       const chatRef = ref(rtdb, `chats/${chatId}/messages`);
       off(chatRef);
     };
-  }, []);
+  }, [otherUser.id]);
 
   const loadMessages = () => {
     const chatRef = ref(rtdb, `chats/${chatId}/messages`);
@@ -74,6 +77,9 @@ export default function ChatScreen() {
         msgs.sort((a, b) => a.timestamp - b.timestamp);
         setMessages(msgs);
         if (msgs.length > 0) setShowIcebreakers(false);
+      } else {
+        setMessages([]);
+        setShowIcebreakers(true);
       }
     });
   };
@@ -86,7 +92,7 @@ export default function ChatScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user1Name: 'You',
-          user2Name: DEMO_OTHER_USER.name,
+          user2Name: otherUser.name,
           user1Interests: ['coding', 'travel'],
           user2Interests: ['music', 'coffee'],
         }),
@@ -138,13 +144,17 @@ export default function ChatScreen() {
 
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
-    const newMessage: Message = {
-      id: Date.now().toString(),
+
+    const newMessage = {
       text: text.trim(),
       senderId: currentUid,
       timestamp: Date.now(),
     };
-    setMessages(prev => [...prev, newMessage]);
+
+    // Firebase Realtime DB lo save cheyyi
+    const chatRef = ref(rtdb, `chats/${chatId}/messages`);
+    await push(chatRef, newMessage);
+
     setInputText('');
     setShowIcebreakers(false);
     setNudgeMessage('');
@@ -179,14 +189,13 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={[styles.headerName, { color: colors.text, fontFamily: FONTS.bold }]}>
-            {DEMO_OTHER_USER.name}
+            {otherUser.name}
           </Text>
           <View style={styles.onlineRow}>
             <View style={styles.onlineDot} />
             <Text style={[styles.onlineText, { color: colors.subtext, fontFamily: FONTS.regular }]}>Online</Text>
           </View>
         </View>
-        {/* ✅ Video Call button — opens modal */}
         <TouchableOpacity
           style={[styles.callBtn, { backgroundColor: 'rgba(255,45,122,0.15)' }]}
           onPress={() => setShowVideoModal(true)}
@@ -226,7 +235,7 @@ export default function ChatScreen() {
               <Ionicons name="heart" size={36} color="#FF2D7A" />
             </View>
             <Text style={[styles.emptyText, { color: colors.text, fontFamily: FONTS.bold }]}>
-              You matched with {DEMO_OTHER_USER.name}!
+              You matched with {otherUser.name}!
             </Text>
             <Text style={[styles.emptySubText, { color: colors.subtext, fontFamily: FONTS.regular }]}>
               Start the conversation below 👇
@@ -302,7 +311,7 @@ export default function ChatScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ✅ Video Call Modal */}
+      {/* Video Call Modal */}
       <Modal visible={showVideoModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
@@ -314,27 +323,21 @@ export default function ChatScreen() {
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-
             <View style={styles.videoModalContent}>
               <View style={[styles.videoIconWrap, { backgroundColor: 'rgba(255,45,122,0.1)' }]}>
                 <Ionicons name="videocam" size={48} color="#FF2D7A" />
               </View>
               <Text style={[styles.videoTitle, { color: colors.text, fontFamily: FONTS.bold }]}>
-                Call {DEMO_OTHER_USER.name}?
+                Call {otherUser.name}?
               </Text>
               <Text style={[styles.videoSub, { color: colors.subtext, fontFamily: FONTS.regular }]}>
                 Video calling feature is coming soon! 🚀{'\n'}Stay tuned for updates.
               </Text>
             </View>
-
-            <TouchableOpacity
-              style={styles.videoBtn}
-              onPress={() => setShowVideoModal(false)}
-            >
+            <TouchableOpacity style={styles.videoBtn} onPress={() => setShowVideoModal(false)}>
               <Ionicons name="videocam" size={20} color="#fff" />
               <Text style={[styles.videoBtnText, { fontFamily: FONTS.bold }]}>Notify Me When Ready</Text>
             </TouchableOpacity>
-
             <TouchableOpacity onPress={() => setShowVideoModal(false)}>
               <Text style={[styles.cancelText, { color: colors.subtext, fontFamily: FONTS.regular }]}>Cancel</Text>
             </TouchableOpacity>
