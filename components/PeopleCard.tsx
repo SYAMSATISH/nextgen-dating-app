@@ -5,7 +5,7 @@ import { doc, updateDoc, arrayUnion, getDoc, setDoc } from "firebase/firestore";
 import React, { useEffect, useState, useRef } from "react";
 import {
   Dimensions, ImageBackground, StyleSheet,
-  Text, View, ActivityIndicator, TouchableOpacity, Alert,
+  Text, View, ActivityIndicator, TouchableOpacity, Alert, Platform,
 } from "react-native";
 import Swiper from "react-native-deck-swiper";
 import * as Location from 'expo-location';
@@ -16,7 +16,6 @@ import { auth } from "@/constants/appwrite";
 import { cleanString } from "@/constants/apiHelper";
 
 const { width, height } = Dimensions.get("window");
-const CURRENT_USER = { name: "Ravi Kumar", intent: "relationship", bio: "Software developer from Hyderabad", age: 26 };
 
 const PeopleCard = ({ selectedMood, activeTab }: { selectedMood?: string; activeTab?: string }) => {
   const { colors, isDark } = useTheme();
@@ -28,15 +27,41 @@ const PeopleCard = ({ selectedMood, activeTab }: { selectedMood?: string; active
   const currentTab = activeTab || 'foryou';
   const [nearbyLoading, setNearbyLoading] = useState(false);
 
-  const CURRENT_USER_ID = auth.currentUser?.uid || "Ao5bEhPi8nfSUhu1rH79goZ4Bjs1";
+  // ✅ Real user ID from Firebase Auth
+  const CURRENT_USER_ID = auth.currentUser?.uid || "";
+
+  // ✅ Real user data from Firebase
+  const [currentUser, setCurrentUser] = useState({ name: "", intent: "", bio: "", age: 0 });
 
   useEffect(() => {
+    const loadCurrentUser = async () => {
+      if (!CURRENT_USER_ID) return;
+      try {
+        const snap = await getDoc(doc(db, 'users', CURRENT_USER_ID));
+        if (snap.exists()) {
+          const data = snap.data();
+          setCurrentUser({
+            name: data.name || '',
+            intent: data.intent || '',
+            bio: data.bio || '',
+            age: data.age || 0,
+          });
+        }
+      } catch (e) {
+        console.error('Error loading current user:', e);
+      }
+    };
+    loadCurrentUser();
+  }, [CURRENT_USER_ID]);
+
+  useEffect(() => {
+    if (!CURRENT_USER_ID) return;
     if (currentTab === 'nearby') {
       loadNearbyUsers();
     } else {
       loadUsers();
     }
-  }, [selectedMood, activeTab]);
+  }, [selectedMood, activeTab, CURRENT_USER_ID]);
 
   const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371;
@@ -77,7 +102,7 @@ const PeopleCard = ({ selectedMood, activeTab }: { selectedMood?: string; active
 
       const scoreMap: any = {};
       for (const user of finalUsers) {
-        scoreMap[user.id] = getCompatibilityScore(CURRENT_USER, user);
+        scoreMap[user.id] = getCompatibilityScore(currentUser, user);
       }
       setScores(scoreMap);
     } catch (error) {
@@ -100,22 +125,28 @@ const PeopleCard = ({ selectedMood, activeTab }: { selectedMood?: string; active
     setLoading(false);
     const scoreMap: any = {};
     for (const user of otherUsers) {
-      scoreMap[user.id] = getCompatibilityScore(CURRENT_USER, user);
+      scoreMap[user.id] = getCompatibilityScore(currentUser, user);
     }
     setScores(scoreMap);
   };
 
   const getMatchId = (id1: string, id2: string) => [id1, id2].sort().join('_');
 
+  const showAlert = (title: string, message: string, buttons?: any[]) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message, buttons);
+    }
+  };
+
   const handleLike = async (likedUser: User) => {
-    if (!likedUser) return;
+    if (!likedUser || !CURRENT_USER_ID) return;
     try {
-      // Save to liked array
       await updateDoc(doc(db, "users", CURRENT_USER_ID), {
         liked: arrayUnion(likedUser.id),
       });
 
-      // Direct match — no mutual check, immediate match!
       const matchId = getMatchId(CURRENT_USER_ID, likedUser.id);
       await setDoc(doc(db, "matches", matchId), {
         users: [CURRENT_USER_ID, likedUser.id],
@@ -125,7 +156,6 @@ const PeopleCard = ({ selectedMood, activeTab }: { selectedMood?: string; active
         lastMessageAt: new Date(),
       });
 
-      // Add to matches array on both user docs
       await updateDoc(doc(db, "users", CURRENT_USER_ID), {
         matches: arrayUnion(likedUser.id),
       });
@@ -133,7 +163,7 @@ const PeopleCard = ({ selectedMood, activeTab }: { selectedMood?: string; active
         matches: arrayUnion(CURRENT_USER_ID),
       });
 
-      Alert.alert(
+      showAlert(
         "💘 It's a Match!",
         `You and ${cleanString(likedUser.name)} liked each other!`,
         [
@@ -163,6 +193,16 @@ const PeopleCard = ({ selectedMood, activeTab }: { selectedMood?: string; active
 
   const onPressLike = () => swiperRef.current?.swipeRight();
   const onPressNope = () => swiperRef.current?.swipeLeft();
+
+  if (!CURRENT_USER_ID) {
+    return (
+      <View style={styles.centered}>
+        <Text style={[styles.loadingText, { color: colors.subtext, fontFamily: FONTS.regular }]}>
+          Please login to see profiles
+        </Text>
+      </View>
+    );
+  }
 
   if (loading) {
     return (
